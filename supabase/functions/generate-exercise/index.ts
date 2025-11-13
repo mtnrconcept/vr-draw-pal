@@ -95,7 +95,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
     // Appel au modèle local LLM avec timeout
     // =========================
     const controller = new AbortController();
-    const timeoutMs = 15000; // 15s max
+    const timeoutMs = 15000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     let llmResponse: Response;
@@ -109,7 +109,8 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "openai/gpt-oss-20b", // si besoin: remplacer par l'id exact renvoyé par /v1/models
+            // ⚠️ Remplacer par l'ID EXACT renvoyé par /v1/models si différent
+            model: "openai/gpt-oss-20b",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },
@@ -146,13 +147,31 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     clearTimeout(timeoutId);
 
+    const rawErrorText = await (llmResponse.ok ? Promise.resolve("") : llmResponse.text().catch(() => ""));
+
     if (!llmResponse.ok) {
-      const errorText = await llmResponse.text().catch(() => "");
       console.error(
         "[generate-exercise] Local LLM HTTP error:",
         llmResponse.status,
-        errorText,
+        rawErrorText,
       );
+
+      // Cas spécifique: modèle non chargé côté LM Studio / serveur
+      if (llmResponse.status === 400 && rawErrorText.includes("Model unloaded")) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "Le modèle local est déchargé. Recharge-le dans LM Studio (Keep model in memory) puis réessaie.",
+          }),
+          {
+            status: 503,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+            },
+          },
+        );
+      }
 
       if (llmResponse.status === 429) {
         return new Response(
@@ -220,7 +239,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     console.log("[generate-exercise] Exercise generated:", exercise?.title);
 
-    // Pas de génération d'images pour l'instant, on renvoie un tableau vide
+    // Pas de génération d'images pour l'instant
     if (!Array.isArray(exercise.stepImages)) {
       exercise.stepImages = [];
     }
