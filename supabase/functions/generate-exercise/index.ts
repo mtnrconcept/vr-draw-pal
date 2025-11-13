@@ -2,27 +2,36 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const LOCAL_MODEL_ENDPOINT =
-  Deno.env.get("LOCAL_MODEL_ENDPOINT") ??
-  "https://e7c27e33b478.ngrok-free.app/v1/chat/completions";
-const LOCAL_MODEL_NAME =
-  Deno.env.get("LOCAL_MODEL_NAME") ?? "openai/gpt-oss-20b";
-const LOCAL_IMAGE_ENDPOINT = Deno.env.get("LOCAL_IMAGE_ENDPOINT");
-const LOCAL_IMAGE_MODEL =
-  Deno.env.get("LOCAL_IMAGE_MODEL") ?? LOCAL_MODEL_NAME;
+const LOCAL_AI_BASE_URL =
+  Deno.env.get("LOCAL_AI_BASE_URL") ?? "https://f292749b4931.ngrok-free.app";
 
 serve(async (req) => {
+  // Préflight CORS
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, {
+      status: 204,
+      headers: {
+        ...corsHeaders,
+      },
+    });
   }
 
   try {
     const { level, focus, previousExercises } = await req.json();
 
-    console.log("Generating exercise for level:", level, "focus:", focus);
+    console.log(
+      "[generate-exercise] Incoming request:",
+      JSON.stringify({ level, focus, previousExercises }),
+    );
+    console.log(
+      "[generate-exercise] Using local LLM base URL:",
+      LOCAL_AI_BASE_URL,
+    );
 
     const systemPrompt = `Tu es un expert en enseignement du dessin réaliste, inspiré des méthodes professionnelles.
 
@@ -67,50 +76,74 @@ ${previousExercises ? `L'utilisateur a déjà fait : ${previousExercises.join(",
 
 Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
-    const response = await fetch(LOCAL_MODEL_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+    // =========================
+    // Appel au modèle local LLM
+    // =========================
+    const llmResponse = await fetch(
+      `${LOCAL_AI_BASE_URL}/v1/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-oss-20b", // ⚠️ mets ici l'id exact renvoyé par /v1/models
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: 0.8,
+          max_tokens: 512,
+          stream: false,
+        }),
       },
-      body: JSON.stringify({
-        model: LOCAL_MODEL_NAME,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: -1,
-        stream: false,
-      }),
-    });
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Model endpoint error:", response.status, errorText);
-      
-      if (response.status === 429) {
+    if (!llmResponse.ok) {
+      const errorText = await llmResponse.text();
+      console.error(
+        "[generate-exercise] Local LLM error:",
+        llmResponse.status,
+        errorText,
+      );
+
+      if (llmResponse.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Trop de requêtes, veuillez réessayer." }), 
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({
+            error:
+              "Trop de requêtes vers le modèle local, veuillez réessayer plus tard.",
+          }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+            },
+          },
         );
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Crédits insuffisants." }), 
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      
-      throw new Error("Erreur lors de la génération de l'exercice");
+
+      throw new Error(
+        `Erreur lors de la génération de l'exercice via le modèle local (status ${llmResponse.status})`,
+      );
     }
 
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    
-    // Extraire le JSON de la réponse
-    let exercise;
+    const llmData = await llmResponse.json();
+    const content = llmData.choices?.[0]?.message?.content;
+
+    if (!content) {
+      console.error(
+        "[generate-exercise] Réponse vide ou sans 'content' depuis le modèle local:",
+        JSON.stringify(llmData),
+      );
+      throw new Error("Réponse du modèle local invalide (pas de content)");
+    }
+
+    // =========================
+    // Parsing du JSON renvoyé
+    // =========================
+    let exercise: any;
     try {
-      // Nettoyer le contenu pour extraire le JSON
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         exercise = JSON.parse(jsonMatch[0]);
@@ -118,61 +151,127 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
         exercise = JSON.parse(content);
       }
     } catch (parseError) {
-      console.error("Failed to parse exercise JSON:", content);
-      throw new Error("Format de réponse invalide");
+      console.error(
+        "[generate-exercise] Failed to parse exercise JSON from local model, raw content:",
+        content,
+      );
+      throw new Error("Format de réponse invalide (JSON strict attendu)");
     }
 
-    console.log("Exercise generated successfully:", exercise.title);
+    console.log("[generate-exercise] Exercise generated:", exercise.title);
 
-    // Récupérer des images de croquis depuis internet
+    // =======================================
+    // Génération d'images (optionnelle)
+    // =======================================
     const stepImages: string[] = [];
-    if (exercise.stepImagePrompts && Array.isArray(exercise.stepImagePrompts)) {
-      console.log(`Finding ${exercise.stepImagePrompts.length} sketch images from the web...`);
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-      // Bibliothèque d'URLs d'images de croquis de haute qualité
-      const sketchImageLibrary = [
-        "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&h=800&fit=crop", // sketch drawing
-        "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=800&h=800&fit=crop", // pencil sketch
-        "https://images.unsplash.com/photo-1544967082-d9d25d867d66?w=800&h=800&fit=crop", // drawing process
-        "https://images.unsplash.com/photo-1542232430-e2e3f1c9e1a4?w=800&h=800&fit=crop", // sketching
-        "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=800&fit=crop", // art sketch
-        "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&h=800&fit=crop&q=80", // detailed sketch
-        "https://images.unsplash.com/photo-1515378960530-7c0da6231fb1?w=800&h=800&fit=crop", // pencil drawing art
-        "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&h=800&fit=crop", // sketch art
-        "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=800&h=800&fit=crop", // drawing hands
-        "https://images.unsplash.com/photo-1611312449408-fcece27cdbb7?w=800&h=800&fit=crop", // sketch tutorial
-        "https://images.unsplash.com/photo-1507301885994-df2c89134c0d?w=800&h=800&fit=crop", // pencil art
-        "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&h=800&fit=crop", // drawing guide
-      ];
+    if (!exercise.stepImagePrompts || !Array.isArray(exercise.stepImagePrompts)) {
+      console.log(
+        "[generate-exercise] Aucun stepImagePrompts valide, skip génération d'images.",
+      );
+    } else if (!LOVABLE_API_KEY) {
+      console.warn(
+        "[generate-exercise] LOVABLE_API_KEY manquante, les stepImages resteront vides.",
+      );
+    } else {
+      console.log(
+        `[generate-exercise] Generating ${exercise.stepImagePrompts.length} images via Lovable AI...`,
+      );
 
       for (let i = 0; i < exercise.stepImagePrompts.length; i++) {
         try {
-          // Utiliser une image différente pour chaque étape en rotation
-          const imageUrl = sketchImageLibrary[i % sketchImageLibrary.length];
-          stepImages.push(imageUrl);
-          console.log(`Image ${i + 1}/${exercise.stepImagePrompts.length} assigned from library`);
+          const prompt = exercise.stepImagePrompts[i];
+          console.log(
+            `[generate-exercise] Generating image ${i + 1}/${
+              exercise.stepImagePrompts.length
+            }`,
+          );
+
+          const imageResponse = await fetch(
+            "https://ai.gateway.lovable.dev/v1/chat/completions",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash-image-preview",
+                messages: [
+                  {
+                    role: "user",
+                    content: prompt,
+                  },
+                ],
+                modalities: ["image", "text"],
+              }),
+            },
+          );
+
+          if (imageResponse.ok) {
+            const imageData = await imageResponse.json();
+            const imageUrl =
+              imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+            if (imageUrl) {
+              stepImages.push(imageUrl);
+              console.log(
+                `[generate-exercise] Image ${i + 1} generated successfully`,
+              );
+            } else {
+              console.warn(
+                `[generate-exercise] Image ${i + 1}: pas d'URL retournée`,
+              );
+              stepImages.push("");
+            }
+          } else if (imageResponse.status === 402) {
+            console.error(
+              "[generate-exercise] Insufficient credits for image generation - stopping",
+            );
+            break;
+          } else {
+            console.error(
+              `[generate-exercise] Failed to generate image ${i + 1}:`,
+              imageResponse.status,
+              await imageResponse.text(),
+            );
+            stepImages.push("");
+          }
         } catch (imageError) {
-          console.error(`Error assigning image ${i + 1}:`, imageError);
+          console.error(
+            `[generate-exercise] Error generating image ${i + 1}:`,
+            imageError,
+          );
           stepImages.push("");
         }
       }
     }
 
     exercise.stepImages = stepImages;
-    delete exercise.stepImagePrompts; // Ne pas envoyer les prompts au client
-    delete exercise.diagramPrompt; // Ancienne propriété
+    delete exercise.stepImagePrompts;
+    delete exercise.diagramPrompt;
 
     return new Response(JSON.stringify({ exercise }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+      },
     });
   } catch (error) {
-    console.error("Error in generate-exercise function:", error);
+    console.error("[generate-exercise] Global error:", error);
+
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
       {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      },
     );
   }
 });
