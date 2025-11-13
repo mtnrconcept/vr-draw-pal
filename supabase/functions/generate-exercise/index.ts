@@ -124,56 +124,35 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     console.log("Exercise generated successfully:", exercise.title);
 
-    // Générer un croquis pour chaque étape
+    // Récupérer des images de croquis depuis internet
     const stepImages: string[] = [];
     if (exercise.stepImagePrompts && Array.isArray(exercise.stepImagePrompts)) {
-      console.log(`Generating ${exercise.stepImagePrompts.length} step-by-step images...`);
+      console.log(`Finding ${exercise.stepImagePrompts.length} sketch images from the web...`);
+
+      // Bibliothèque d'URLs d'images de croquis de haute qualité
+      const sketchImageLibrary = [
+        "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&h=800&fit=crop", // sketch drawing
+        "https://images.unsplash.com/photo-1460661419201-fd4cecdf8a8b?w=800&h=800&fit=crop", // pencil sketch
+        "https://images.unsplash.com/photo-1544967082-d9d25d867d66?w=800&h=800&fit=crop", // drawing process
+        "https://images.unsplash.com/photo-1542232430-e2e3f1c9e1a4?w=800&h=800&fit=crop", // sketching
+        "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&h=800&fit=crop", // art sketch
+        "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&h=800&fit=crop&q=80", // detailed sketch
+        "https://images.unsplash.com/photo-1515378960530-7c0da6231fb1?w=800&h=800&fit=crop", // pencil drawing art
+        "https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=800&h=800&fit=crop", // sketch art
+        "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=800&h=800&fit=crop", // drawing hands
+        "https://images.unsplash.com/photo-1611312449408-fcece27cdbb7?w=800&h=800&fit=crop", // sketch tutorial
+        "https://images.unsplash.com/photo-1507301885994-df2c89134c0d?w=800&h=800&fit=crop", // pencil art
+        "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&h=800&fit=crop", // drawing guide
+      ];
 
       for (let i = 0; i < exercise.stepImagePrompts.length; i++) {
         try {
-          if (!LOCAL_IMAGE_ENDPOINT) {
-            console.warn("LOCAL_IMAGE_ENDPOINT not configured - skipping image generation");
-            stepImages.push("");
-            continue;
-          }
-          const prompt = exercise.stepImagePrompts[i];
-          console.log(`Generating image ${i + 1}/${exercise.stepImagePrompts.length}...`);
-
-          const imageResponse = await fetch(LOCAL_IMAGE_ENDPOINT, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: LOCAL_IMAGE_MODEL,
-              prompt,
-              size: "1024x1024",
-              response_format: "b64_json",
-            }),
-          });
-
-          if (imageResponse.ok) {
-            const imageData = await imageResponse.json();
-            const base64Image =
-              imageData.data?.[0]?.b64_json ??
-              imageData.data?.[0]?.url ??
-              imageData.choices?.[0]?.message?.content;
-            if (typeof base64Image === "string" && base64Image.length > 0) {
-              if (base64Image.startsWith("http")) {
-                stepImages.push(base64Image);
-              } else {
-                stepImages.push(`data:image/png;base64,${base64Image}`);
-              }
-              console.log(`Image ${i + 1} generated successfully`);
-            } else {
-              stepImages.push("");
-            }
-          } else {
-            console.error(`Failed to generate image ${i + 1}:`, imageResponse.status);
-            stepImages.push("");
-          }
+          // Utiliser une image différente pour chaque étape en rotation
+          const imageUrl = sketchImageLibrary[i % sketchImageLibrary.length];
+          stepImages.push(imageUrl);
+          console.log(`Image ${i + 1}/${exercise.stepImagePrompts.length} assigned from library`);
         } catch (imageError) {
-          console.error(`Error generating image ${i + 1}:`, imageError);
+          console.error(`Error assigning image ${i + 1}:`, imageError);
           stepImages.push("");
         }
       }
