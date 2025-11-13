@@ -5,7 +5,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOCAL_MODEL_ENDPOINT = "https://f292749b4931.ngrok-free.app/v1/chat/completions";
+const LOCAL_MODEL_ENDPOINT =
+  Deno.env.get("LOCAL_MODEL_ENDPOINT") ??
+  "https://e7c27e33b478.ngrok-free.app/v1/chat/completions";
+const LOCAL_MODEL_NAME =
+  Deno.env.get("LOCAL_MODEL_NAME") ?? "openai/gpt-oss-20b";
+const LOCAL_IMAGE_ENDPOINT = Deno.env.get("LOCAL_IMAGE_ENDPOINT");
+const LOCAL_IMAGE_MODEL =
+  Deno.env.get("LOCAL_IMAGE_MODEL") ?? LOCAL_MODEL_NAME;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -14,7 +21,6 @@ serve(async (req) => {
 
   try {
     const { level, focus, previousExercises } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     console.log("Generating exercise for level:", level, "focus:", focus);
 
@@ -67,7 +73,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b",
+        model: LOCAL_MODEL_NAME,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -80,7 +86,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Model endpoint error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -125,45 +131,43 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
       for (let i = 0; i < exercise.stepImagePrompts.length; i++) {
         try {
-          if (!LOVABLE_API_KEY) {
-            console.warn("LOVABLE_API_KEY not configured - skipping image generation");
+          if (!LOCAL_IMAGE_ENDPOINT) {
+            console.warn("LOCAL_IMAGE_ENDPOINT not configured - skipping image generation");
             stepImages.push("");
             continue;
           }
           const prompt = exercise.stepImagePrompts[i];
           console.log(`Generating image ${i + 1}/${exercise.stepImagePrompts.length}...`);
 
-          const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          const imageResponse = await fetch(LOCAL_IMAGE_ENDPOINT, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash-image-preview",
-              messages: [
-                {
-                  role: "user",
-                  content: prompt
-                }
-              ],
-              modalities: ["image", "text"]
+              model: LOCAL_IMAGE_MODEL,
+              prompt,
+              size: "1024x1024",
+              response_format: "b64_json",
             }),
           });
 
           if (imageResponse.ok) {
             const imageData = await imageResponse.json();
-            const imageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-            if (imageUrl) {
-              stepImages.push(imageUrl);
+            const base64Image =
+              imageData.data?.[0]?.b64_json ??
+              imageData.data?.[0]?.url ??
+              imageData.choices?.[0]?.message?.content;
+            if (typeof base64Image === "string" && base64Image.length > 0) {
+              if (base64Image.startsWith("http")) {
+                stepImages.push(base64Image);
+              } else {
+                stepImages.push(`data:image/png;base64,${base64Image}`);
+              }
               console.log(`Image ${i + 1} generated successfully`);
             } else {
               stepImages.push("");
             }
-          } else if (imageResponse.status === 402) {
-            console.error("Insufficient credits for image generation - stopping");
-            // Retourner l'exercice avec les images générées jusqu'ici
-            break;
           } else {
             console.error(`Failed to generate image ${i + 1}:`, imageResponse.status);
             stepImages.push("");

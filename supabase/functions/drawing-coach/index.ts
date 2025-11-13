@@ -5,7 +5,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOCAL_MODEL_ENDPOINT = "https://f292749b4931.ngrok-free.app/v1/chat/completions";
+const LOCAL_MODEL_ENDPOINT =
+  Deno.env.get("LOCAL_MODEL_ENDPOINT") ??
+  "https://e7c27e33b478.ngrok-free.app/v1/chat/completions";
+const LOCAL_MODEL_NAME =
+  Deno.env.get("LOCAL_MODEL_NAME") ?? "openai/gpt-oss-20b";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -45,7 +49,7 @@ Domaines d'expertise :
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-20b",
+        model: LOCAL_MODEL_NAME,
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
@@ -77,7 +81,7 @@ Domaines d'expertise :
       }
       
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Model endpoint error:", response.status, errorText);
       throw new Error("Erreur lors de la communication avec l'assistant IA");
     }
 
