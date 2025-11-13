@@ -21,6 +21,37 @@ interface Exercise {
   stepImages?: string[];
 }
 
+const fallbackExercise: Exercise = {
+  title: "Étude du visage réaliste",
+  description:
+    "Un atelier guidé pas à pas pour apprendre à construire un visage réaliste en respectant les proportions et les volumes.",
+  steps: [
+    "Trace légèrement un ovale pour définir la forme globale du visage, puis dessine une ligne verticale centrale et une ligne horizontale au milieu pour placer les yeux.",
+    "Ajoute deux lignes horizontales supplémentaires : une à mi-distance entre la ligne des yeux et le menton pour placer le nez, et une autre au-dessus pour positionner la ligne des sourcils.",
+    "Dessine la forme générale des yeux sur la ligne centrale, puis ajoute la base du nez en utilisant la ligne inférieure comme repère. Ébauche ensuite la bouche en t'appuyant sur la distance entre le nez et le menton.",
+    "Affines les volumes en ajoutant les pommettes, la mâchoire et les oreilles alignées sur les yeux et le nez. Termine en renforçant les ombres principales pour donner du relief.",
+  ],
+  tips: [
+    "Garde ton crayon léger au début pour pouvoir ajuster facilement les proportions.",
+    "Observe la symétrie du visage mais accepte de légères asymétries pour un rendu naturel.",
+    "Utilise l'estompe uniquement après avoir posé les bonnes valeurs d'ombre et de lumière.",
+  ],
+  focusPoints: [
+    "Alignement des yeux, du nez et de la bouche sur l'axe central.",
+    "Gestion des volumes : pommettes, mâchoire et front.",
+    "Transitions douces entre zones d'ombre et de lumière.",
+  ],
+  duration: "25 minutes",
+  materials: ["Crayon HB", "Gomme mie de pain", "Estompe", "Feuille A4"],
+  difficulty: "Intermédiaire",
+  stepImages: [
+    "https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80",
+    "https://images.unsplash.com/photo-1520975922131-97788e79fcd0?auto=format&fit=crop&w=800&q=80",
+  ],
+};
+
 const LiveExercise = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -52,14 +83,16 @@ const LiveExercise = () => {
         }
         throw error;
       }
-      
+
       setExercise(data.exercise);
       toast.success("Exercice généré ! 🎨");
-    } catch (error) {
-      console.error("Error:", error);
-      if (!error.message?.includes("Crédits insuffisants")) {
-        toast.error("Erreur lors de la génération de l'exercice");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Error generating exercise:", errorMessage);
+      if (!errorMessage.includes("Crédits insuffisants")) {
+        toast.info("Impossible de contacter l'assistant, chargement d'un exercice hors-ligne ✨");
       }
+      setExercise(fallbackExercise);
     } finally {
       setIsLoading(false);
     }
@@ -80,7 +113,7 @@ const LiveExercise = () => {
 
   const getFeedback = async (specificQuestion?: string) => {
     if (!exercise) return;
-    
+
     setIsAnalyzing(true);
     try {
       const { data, error } = await supabase.functions.invoke("analyze-drawing", {
@@ -92,12 +125,16 @@ const LiveExercise = () => {
       });
 
       if (error) throw error;
-      
+
       setFeedback(data.feedback);
       setQuestion("");
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error("Erreur lors de l'analyse");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Error analyzing drawing:", errorMessage);
+      setFeedback(
+        "Je ne peux pas analyser ton dessin pour le moment, mais continue en t'appuyant sur les conseils fournis. Pose-moi une question spécifique et je te guiderai avec des astuces générales !"
+      );
+      toast.info("Analyse hors-ligne indisponible, affichage de conseils généraux.");
     } finally {
       setIsAnalyzing(false);
     }
