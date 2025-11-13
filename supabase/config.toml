@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.analyze-drawing]
 verify_jwt = false
+
+[functions.list-exercises]
+verify_jwt = false
