@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.6?target=deno";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +11,26 @@ const corsHeaders = {
 const LOCAL_MODEL_ENDPOINT = Deno.env.get("LOCAL_MODEL_ENDPOINT");
 const LOCAL_MODEL_NAME =
   Deno.env.get("LOCAL_MODEL_NAME") ?? "openai/gpt-oss-20b";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const supabaseClient =
+  SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        auth: { persistSession: false },
+      })
+    : null;
+
+const ensureStringArray = (value: unknown): string[] =>
+  Array.isArray(value)
+    ? value
+        .map((item) => (typeof item === "string" ? item : String(item ?? "")))
+        .filter((item) => item.trim().length > 0)
+    : [];
+
+const toOptionalText = (value: unknown): string | null =>
+  typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : null;
 
 serve(async (req) => {
   // Préflight CORS
@@ -58,6 +79,27 @@ serve(async (req) => {
         },
       );
     }
+
+    if (!supabaseClient) {
+      console.error(
+        "[generate-exercise] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY non configuré.",
+      );
+      return new Response(
+        JSON.stringify({
+          error:
+            "Configuration Supabase manquante côté serveur : définissez SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY.",
+        }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+    }
+
+    const client = supabaseClient;
 
     console.log(
       "[generate-exercise] Request:",
@@ -256,14 +298,77 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     console.log("[generate-exercise] Exercise generated:", exercise?.title);
 
-    // Pas de génération d'images pour l'instant
-    if (!Array.isArray(exercise.stepImages)) {
-      exercise.stepImages = [];
-    }
-    delete exercise.stepImagePrompts;
-    delete exercise.diagramPrompt;
+    const sanitizedExercise = {
+      title:
+        typeof exercise.title === "string" && exercise.title.trim().length > 0
+          ? exercise.title.trim()
+          : "Exercice sans titre",
+      description:
+        typeof exercise.description === "string"
+          ? exercise.description.trim()
+          : "",
+      steps: ensureStringArray(exercise.steps),
+      tips: ensureStringArray(exercise.tips),
+      focusPoints: ensureStringArray(exercise.focusPoints),
+      materials: ensureStringArray(exercise.materials),
+      stepImages: ensureStringArray(exercise.stepImages),
+      duration: toOptionalText(exercise.duration),
+      difficulty: toOptionalText(exercise.difficulty),
+      level: toOptionalText((exercise as Record<string, unknown>)?.level),
+    };
 
-    return new Response(JSON.stringify({ exercise }), {
+    const sanitizedLevel = toOptionalText(level) ?? sanitizedExercise.level;
+    const sanitizedFocus = toOptionalText(focus);
+    const sanitizedPreviousExercises = ensureStringArray(previousExercises);
+
+    const { data: insertedExercise, error: dbError } = await client
+      .from("drawing_exercises")
+      .insert({
+        title: sanitizedExercise.title,
+        description: sanitizedExercise.description,
+        steps: sanitizedExercise.steps,
+        tips: sanitizedExercise.tips,
+        focus_points: sanitizedExercise.focusPoints,
+        materials: sanitizedExercise.materials,
+        step_images: sanitizedExercise.stepImages,
+        duration: sanitizedExercise.duration,
+        difficulty: sanitizedExercise.difficulty,
+        level: sanitizedLevel,
+        focus: sanitizedFocus,
+        metadata: {
+          generated_by: "generate-exercise",
+          model: LOCAL_MODEL_NAME,
+          request_level: toOptionalText(level),
+          request_focus: sanitizedFocus,
+          previous_exercises: sanitizedPreviousExercises,
+        },
+      })
+      .select()
+      .single();
+
+    if (dbError) {
+      console.error("[generate-exercise] Database insert error:", dbError);
+      throw new Error("Impossible d'enregistrer l'exercice généré");
+    }
+
+    const responseExercise = {
+      id: insertedExercise.id,
+      title: insertedExercise.title,
+      description: insertedExercise.description,
+      steps: insertedExercise.steps ?? [],
+      tips: insertedExercise.tips ?? [],
+      focusPoints: insertedExercise.focus_points ?? [],
+      materials: insertedExercise.materials ?? [],
+      stepImages: insertedExercise.step_images ?? [],
+      duration: insertedExercise.duration,
+      difficulty: insertedExercise.difficulty,
+      level: insertedExercise.level,
+      focus: insertedExercise.focus,
+      metadata: insertedExercise.metadata,
+      createdAt: insertedExercise.created_at,
+    };
+
+    return new Response(JSON.stringify({ exercise: responseExercise }), {
       status: 200,
       headers: {
         ...corsHeaders,
