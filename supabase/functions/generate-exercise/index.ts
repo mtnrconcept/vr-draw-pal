@@ -20,29 +20,42 @@ serve(async (req) => {
 
     console.log("Generating exercise for level:", level, "focus:", focus);
 
-    const systemPrompt = `Tu es un expert en enseignement du dessin. Tu crées des exercices personnalisés progressifs.
+    const systemPrompt = `Tu es un expert en enseignement du dessin réaliste, inspiré des méthodes professionnelles.
 
-Génère un exercice de dessin adapté qui inclut :
-1. Un titre accrocheur et motivant
-2. Une description détaillée de ce qu'il faut dessiner (formes, composition, éléments)
-3. Des instructions étape par étape (4-6 étapes progressives)
-4. Des conseils techniques spécifiques
-5. Des points d'attention (proportions, perspective, ombres, etc.)
-6. Le temps estimé
-7. Le matériel nécessaire
-8. Une description détaillée pour générer un schéma visuel des étapes
+Génère un exercice de dessin avec une progression étape par étape RÉALISTE :
+
+MÉTHODOLOGIE (inspirée des techniques professionnelles):
+1. TOUJOURS commencer par les proportions et la grille (méthode des proportions)
+2. Puis les formes de base et lignes principales (construction géométrique)
+3. Ensuite les valeurs et ombres de base (tons principaux)
+4. Ajouter les détails progressivement (raffinement)
+5. Finir par les détails fins et ajustements (finalisation)
 
 Format JSON attendu :
 {
   "title": "Titre de l'exercice",
-  "description": "Description détaillée",
-  "steps": ["Étape 1", "Étape 2", "Étape 3", "Étape 4"],
-  "tips": ["Conseil 1", "Conseil 2"],
+  "description": "Description détaillée et réaliste",
+  "steps": [
+    "Étape 1: Grille et proportions - Dessinez légèrement la grille de construction et placez les proportions principales",
+    "Étape 2: Formes de base - Construisez les formes géométriques simples (cercles, ovales, lignes)",
+    "Étape 3: Structure et volumes - Affinez les formes et ajoutez les volumes principaux",
+    "Étape 4: Ombres et valeurs - Appliquez les tons principaux et les ombres de base",
+    "Étape 5: Détails moyens - Ajoutez les détails intermédiaires et affinez les textures",
+    "Étape 6: Finitions - Renforcez les contrastes, ajoutez les détails fins et faites les ajustements finaux"
+  ],
+  "stepImagePrompts": [
+    "Croquis au crayon sur fond blanc: Grille légère avec lignes de construction et marqueurs de proportions pour [sujet], vue [angle], style esquisse technique",
+    "Croquis au crayon sur fond blanc: Formes géométriques de base (cercles, ovales, rectangles) construisant [sujet], lignes de construction visibles, style schématique",
+    "Croquis au crayon sur fond blanc: Forme générale de [sujet] avec volumes principaux définis, traits de construction encore visibles, style croquis structuré",
+    "Dessin au crayon sur fond blanc: [Sujet] avec ombres principales et valeurs tonales appliquées, contraste modéré, style réaliste en développement",
+    "Dessin au crayon sur fond blanc: [Sujet] avec détails intermédiaires, textures commencées, ombres nuancées, style réaliste avancé",
+    "Dessin au crayon fini sur fond blanc: [Sujet] complètement détaillé, contrastes riches, textures finies, rendu réaliste professionnel"
+  ],
+  "tips": ["Conseil technique 1", "Conseil technique 2"],
   "focusPoints": ["Point clé 1", "Point clé 2"],
-  "duration": "20 min",
-  "materials": ["Crayon HB", "Gomme"],
-  "difficulty": "Débutant|Intermédiaire|Avancé",
-  "diagramPrompt": "Description détaillée pour générer un schéma visuel montrant les 4-6 étapes numérotées de construction du dessin, avec des formes de base progressant vers le résultat final, style croquis au crayon sur fond blanc"
+  "duration": "30-45 min",
+  "materials": ["Crayon HB", "Crayon 2B", "Crayon 4B", "Gomme", "Estompe"],
+  "difficulty": "Débutant|Intermédiaire|Avancé"
 }`;
 
     const userPrompt = `Crée un exercice ${level} focalisé sur : ${focus}.
@@ -106,42 +119,55 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     console.log("Exercise generated successfully:", exercise.title);
 
-    // Générer le schéma visuel des étapes
-    let stepDiagramUrl = null;
-    if (exercise.diagramPrompt) {
-      try {
-        console.log("Generating step diagram...");
-        const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash-image-preview",
-            messages: [
-              {
-                role: "user",
-                content: exercise.diagramPrompt
-              }
-            ],
-            modalities: ["image", "text"]
-          }),
-        });
+    // Générer un croquis pour chaque étape
+    const stepImages: string[] = [];
+    if (exercise.stepImagePrompts && Array.isArray(exercise.stepImagePrompts)) {
+      console.log(`Generating ${exercise.stepImagePrompts.length} step-by-step images...`);
+      
+      for (let i = 0; i < exercise.stepImagePrompts.length; i++) {
+        try {
+          const prompt = exercise.stepImagePrompts[i];
+          console.log(`Generating image ${i + 1}/${exercise.stepImagePrompts.length}...`);
+          
+          const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash-image-preview",
+              messages: [
+                {
+                  role: "user",
+                  content: prompt
+                }
+              ],
+              modalities: ["image", "text"]
+            }),
+          });
 
-        if (imageResponse.ok) {
-          const imageData = await imageResponse.json();
-          stepDiagramUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-          console.log("Step diagram generated successfully");
-        } else {
-          console.error("Failed to generate step diagram:", imageResponse.status);
+          if (imageResponse.ok) {
+            const imageData = await imageResponse.json();
+            const imageUrl = imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+            if (imageUrl) {
+              stepImages.push(imageUrl);
+              console.log(`Image ${i + 1} generated successfully`);
+            }
+          } else {
+            console.error(`Failed to generate image ${i + 1}:`, imageResponse.status);
+            stepImages.push(""); // Placeholder si échec
+          }
+        } catch (imageError) {
+          console.error(`Error generating image ${i + 1}:`, imageError);
+          stepImages.push(""); // Placeholder si échec
         }
-      } catch (imageError) {
-        console.error("Error generating step diagram:", imageError);
       }
     }
 
-    exercise.stepDiagram = stepDiagramUrl;
+    exercise.stepImages = stepImages;
+    delete exercise.stepImagePrompts; // Ne pas envoyer les prompts au client
+    delete exercise.diagramPrompt; // Ancienne propriété
 
     return new Response(JSON.stringify({ exercise }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

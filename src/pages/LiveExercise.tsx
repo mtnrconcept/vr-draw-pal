@@ -17,7 +17,7 @@ interface Exercise {
   duration: string;
   materials: string[];
   difficulty: string;
-  stepDiagram?: string;
+  stepImages?: string[];
 }
 
 const LiveExercise = () => {
@@ -164,17 +164,22 @@ const LiveExercise = () => {
           <Card className="p-6 border-border shadow-[var(--shadow-card)]">
             <h2 className="text-xl font-semibold mb-4 text-card-foreground flex items-center">
               <Sparkles className="mr-2 h-5 w-5 text-primary" />
-              Étape actuelle
+              Étape {currentStep + 1}/{exercise.steps.length}
             </h2>
             
-            {/* Step Diagram */}
-            {exercise.stepDiagram && (
-              <div className="mb-4 rounded-lg overflow-hidden border border-border">
+            {/* Step-by-step Image */}
+            {exercise.stepImages && exercise.stepImages[currentStep] && (
+              <div className="mb-4 rounded-lg overflow-hidden border-2 border-primary/20 shadow-lg bg-white">
                 <img 
-                  src={exercise.stepDiagram} 
-                  alt="Schéma des étapes" 
+                  src={exercise.stepImages[currentStep]} 
+                  alt={`Croquis étape ${currentStep + 1}`}
                   className="w-full h-auto"
                 />
+                <div className="p-2 bg-gradient-to-r from-primary/10 to-secondary/10 text-center">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    📐 Référence visuelle - Étape {currentStep + 1}
+                  </p>
+                </div>
               </div>
             )}
             
