@@ -38,26 +38,23 @@ serve(async (req) => {
     return new Response(null, {
       status: 204,
       headers: {
-        ...corsHeaders,
-      },
+        ...corsHeaders
+      }
     });
   }
-
   try {
     if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({ error: "Method not allowed" }),
-        {
-          status: 405,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      return new Response(JSON.stringify({
+        error: "Method not allowed"
+      }), {
+        status: 405,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
     }
-
-    const { level, focus, previousExercises } = await req.json().catch(() => {
+    const { level, focus, previousExercises } = await req.json().catch(()=>{
       throw new Error("Body JSON invalide");
     });
 
@@ -144,143 +141,99 @@ Format JSON attendu :
   "materials": ["Crayon HB", "Crayon 2B", "Crayon 4B", "Gomme", "Estompe"],
   "difficulty": "Débutant|Intermédiaire|Avancé"
 }`;
-
     const userPrompt = `Crée un exercice ${level} focalisé sur : ${focus}.
 ${previousExercises ? `L'utilisateur a déjà fait : ${previousExercises.join(", ")}. Propose quelque chose de différent et progressif.` : ""}
 
 Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
-
-    // =========================
-    // Appel au modèle local LLM avec timeout
-    // =========================
+    // Call local LLM with timeout
     const controller = new AbortController();
     const timeoutMs = 15000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-    let llmResponse: Response;
-
+    const timeoutId = setTimeout(()=>controller.abort(), timeoutMs);
+    let llmResponse;
     try {
-      llmResponse = await fetch(
-        LOCAL_MODEL_ENDPOINT,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            // ⚠️ Remplacer par l'ID EXACT renvoyé par /v1/models si différent
-            model: LOCAL_MODEL_NAME,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.8,
-            max_tokens: 512,
-            stream: false,
-          }),
-          signal: controller.signal,
+      llmResponse = await fetch(`${LOCAL_AI_BASE_URL}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
         },
-      );
+        body: JSON.stringify({
+          model: "openai/gpt-oss-20b",
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            {
+              role: "user",
+              content: userPrompt
+            }
+          ],
+          temperature: 0.8,
+          max_tokens: 512,
+          stream: false
+        }),
+        signal: controller.signal
+      });
     } catch (e) {
       clearTimeout(timeoutId);
       console.error("[generate-exercise] Error calling local LLM:", e);
-
-      const isAbort =
-        e instanceof DOMException && e.name === "AbortError";
-
-      return new Response(
-        JSON.stringify({
-          error: isAbort
-            ? "Timeout lors de l'appel au modèle local"
-            : "Impossible de joindre le modèle local",
-        }),
-        {
-          status: isAbort ? 504 : 502,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      const isAbort = e instanceof DOMException && e.name === "AbortError";
+      return new Response(JSON.stringify({
+        error: isAbort ? "Timeout lors de l'appel au modèle local" : "Impossible de joindre le modèle local"
+      }), {
+        status: isAbort ? 504 : 502,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
     }
-
     clearTimeout(timeoutId);
-
-    const rawErrorText = await (llmResponse.ok ? Promise.resolve("") : llmResponse.text().catch(() => ""));
-
+    const rawErrorText = await (llmResponse.ok ? Promise.resolve("") : llmResponse.text().catch(()=>""));
     if (!llmResponse.ok) {
-      console.error(
-        "[generate-exercise] Local LLM HTTP error:",
-        llmResponse.status,
-        rawErrorText,
-      );
-
-      // Cas spécifique: modèle non chargé côté LM Studio / serveur
+      console.error("[generate-exercise] Local LLM HTTP error:", llmResponse.status, rawErrorText);
       if (llmResponse.status === 400 && rawErrorText.includes("Model unloaded")) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Le modèle local est déchargé. Recharge-le dans LM Studio (Keep model in memory) puis réessaie.",
-          }),
-          {
-            status: 503,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-            },
-          },
-        );
-      }
-
-      if (llmResponse.status === 429) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Trop de requêtes vers le modèle local, veuillez réessayer plus tard.",
-          }),
-          {
-            status: 429,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-            },
-          },
-        );
-      }
-
-      return new Response(
-        JSON.stringify({
-          error: `Erreur lors de la génération via le modèle local (status ${llmResponse.status})`,
-        }),
-        {
-          status: 502,
+        return new Response(JSON.stringify({
+          error: "Le modèle local est déchargé. Recharge-le dans LM Studio (Keep model in memory) puis réessaie."
+        }), {
+          status: 503,
           headers: {
             ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+            "Content-Type": "application/json"
+          }
+        });
+      }
+      if (llmResponse.status === 429) {
+        return new Response(JSON.stringify({
+          error: "Trop de requêtes vers le modèle local, veuillez réessayer plus tard."
+        }), {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json"
+          }
+        });
+      }
+      return new Response(JSON.stringify({
+        error: `Erreur lors de la génération via le modèle local (status ${llmResponse.status})`
+      }), {
+        status: 502,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json"
+        }
+      });
     }
-
-    const llmData = await llmResponse.json().catch((e) => {
+    const llmData = await llmResponse.json().catch((e)=>{
       console.error("[generate-exercise] Error parsing LLM JSON:", e);
       throw new Error("Réponse JSON invalide du modèle local");
     });
-
     const content = llmData?.choices?.[0]?.message?.content;
-
     if (!content || typeof content !== "string") {
-      console.error(
-        "[generate-exercise] No valid content from local model:",
-        JSON.stringify(llmData),
-      );
+      console.error("[generate-exercise] No valid content from local model:", JSON.stringify(llmData));
       throw new Error("Réponse du modèle local invalide (pas de content string)");
     }
-
-    // =========================
-    // Parsing du JSON renvoyé
-    // =========================
-    let exercise: any;
+    let exercise;
     try {
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -289,13 +242,9 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
         exercise = JSON.parse(content);
       }
     } catch (parseError) {
-      console.error(
-        "[generate-exercise] Failed to parse exercise JSON, raw content:",
-        content,
-      );
+      console.error("[generate-exercise] Failed to parse exercise JSON, raw content:", content);
       throw new Error("Format de réponse invalide (JSON strict attendu)");
     }
-
     console.log("[generate-exercise] Exercise generated:", exercise?.title);
 
     const sanitizedExercise = {
@@ -372,23 +321,19 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
       status: 200,
       headers: {
         ...corsHeaders,
-        "Content-Type": "application/json",
-      },
+        "Content-Type": "application/json"
+      }
     });
   } catch (error) {
     console.error("[generate-exercise] Global error:", error);
-
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      },
-    );
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : "Unknown error"
+    }), {
+      status: 500,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json"
+      }
+    });
   }
 });
