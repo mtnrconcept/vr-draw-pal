@@ -2,8 +2,23 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+const SUPABASE_URL =
+  import.meta.env.VITE_SUPABASE_URL ??
+  (SUPABASE_PROJECT_ID ? `https://${SUPABASE_PROJECT_ID}.supabase.co` : undefined);
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+if (!SUPABASE_URL) {
+  throw new Error(
+    "Supabase URL non configurée. Définissez VITE_SUPABASE_URL ou VITE_SUPABASE_PROJECT_ID dans le fichier .env.",
+  );
+}
+
+if (!SUPABASE_PUBLISHABLE_KEY) {
+  throw new Error(
+    "Clé publique Supabase manquante. Définissez VITE_SUPABASE_PUBLISHABLE_KEY dans le fichier .env.",
+  );
+}
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

@@ -5,9 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const LOCAL_MODEL_ENDPOINT =
-  Deno.env.get("LOCAL_MODEL_ENDPOINT") ??
-  "https://e7c27e33b478.ngrok-free.app/v1/chat/completions";
+const LOCAL_MODEL_ENDPOINT = Deno.env.get("LOCAL_MODEL_ENDPOINT");
 const LOCAL_MODEL_NAME =
   Deno.env.get("LOCAL_MODEL_NAME") ?? "openai/gpt-oss-20b";
 
@@ -18,6 +16,22 @@ serve(async (req) => {
 
   try {
     const { exerciseTitle, userProgress, specificQuestion } = await req.json();
+
+    if (!LOCAL_MODEL_ENDPOINT) {
+      console.error(
+        "[analyze-drawing] LOCAL_MODEL_ENDPOINT non configuré dans Supabase.",
+      );
+      return new Response(
+        JSON.stringify({
+          error:
+            "Configuration serveur manquante : définissez LOCAL_MODEL_ENDPOINT via `supabase secrets set`.",
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     console.log("Analyzing drawing progress for:", exerciseTitle);
 

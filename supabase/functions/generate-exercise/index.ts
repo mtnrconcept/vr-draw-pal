@@ -7,8 +7,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const LOCAL_AI_BASE_URL =
-  Deno.env.get("LOCAL_AI_BASE_URL") ?? "https://e7c27e33b478.ngrok-free.app";
+const LOCAL_MODEL_ENDPOINT = Deno.env.get("LOCAL_MODEL_ENDPOINT");
+const LOCAL_MODEL_NAME =
+  Deno.env.get("LOCAL_MODEL_NAME") ?? "openai/gpt-oss-20b";
 
 serve(async (req) => {
   // Préflight CORS
@@ -39,14 +40,30 @@ serve(async (req) => {
       throw new Error("Body JSON invalide");
     });
 
+    if (!LOCAL_MODEL_ENDPOINT) {
+      console.error(
+        "[generate-exercise] LOCAL_MODEL_ENDPOINT non configuré dans les variables d'environnement Supabase.",
+      );
+      return new Response(
+        JSON.stringify({
+          error:
+            "Configuration manquante côté serveur : définissez LOCAL_MODEL_ENDPOINT via `supabase secrets set`.",
+        }),
+        {
+          status: 500,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+    }
+
     console.log(
       "[generate-exercise] Request:",
       JSON.stringify({ level, focus, previousExercises }),
     );
-    console.log(
-      "[generate-exercise] Using local LLM base URL:",
-      LOCAL_AI_BASE_URL,
-    );
+    console.log("[generate-exercise] Using local LLM endpoint:", LOCAL_MODEL_ENDPOINT);
 
     const systemPrompt = `Tu es un expert en enseignement du dessin réaliste, inspiré des méthodes professionnelles.
 
@@ -102,7 +119,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     try {
       llmResponse = await fetch(
-        `${LOCAL_AI_BASE_URL}/v1/chat/completions`,
+        LOCAL_MODEL_ENDPOINT,
         {
           method: "POST",
           headers: {
@@ -110,7 +127,7 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
           },
           body: JSON.stringify({
             // ⚠️ Remplacer par l'ID EXACT renvoyé par /v1/models si différent
-            model: "openai/gpt-oss-20b",
+            model: LOCAL_MODEL_NAME,
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: userPrompt },
