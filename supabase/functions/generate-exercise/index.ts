@@ -145,13 +145,13 @@ Format JSON attendu :
 ${previousExercises ? `L'utilisateur a déjà fait : ${previousExercises.join(", ")}. Propose quelque chose de différent et progressif.` : ""}
 
 Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
-    // Call local LLM with timeout
+    // Call local LLM with timeout (increased for local models)
     const controller = new AbortController();
-    const timeoutMs = 15000;
+    const timeoutMs = 120000; // 2 minutes for local model
     const timeoutId = setTimeout(()=>controller.abort(), timeoutMs);
     let llmResponse;
     try {
-      llmResponse = await fetch(`${LOCAL_MODEL_ENDPOINT}/v1/chat/completions`, {
+      llmResponse = await fetch(LOCAL_MODEL_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -189,6 +189,10 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
       });
     }
     clearTimeout(timeoutId);
+    
+    // Log response status for debugging
+    console.log("[generate-exercise] LLM response status:", llmResponse.status);
+    
     const rawErrorText = await (llmResponse.ok ? Promise.resolve("") : llmResponse.text().catch(()=>""));
     if (!llmResponse.ok) {
       console.error("[generate-exercise] Local LLM HTTP error:", llmResponse.status, rawErrorText);
@@ -225,7 +229,8 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
       });
     }
     const llmData = await llmResponse.json().catch((e)=>{
-      console.error("[generate-exercise] Error parsing LLM JSON:", e);
+      console.error("[generate-exercise] Error parsing LLM response as JSON:", e);
+      console.error("[generate-exercise] Response headers:", Object.fromEntries(llmResponse.headers.entries()));
       throw new Error("Réponse JSON invalide du modèle local");
     });
     const content = llmData?.choices?.[0]?.message?.content;
