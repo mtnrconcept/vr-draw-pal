@@ -22,10 +22,25 @@ serve(async (req) => {
   }
 
   try {
-    const { level, focus, previousExercises } = await req.json();
+    if (req.method !== "POST") {
+      return new Response(
+        JSON.stringify({ error: "Method not allowed" }),
+        {
+          status: 405,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+    }
+
+    const { level, focus, previousExercises } = await req.json().catch(() => {
+      throw new Error("Body JSON invalide");
+    });
 
     console.log(
-      "[generate-exercise] Incoming request:",
+      "[generate-exercise] Request:",
       JSON.stringify({ level, focus, previousExercises }),
     );
     console.log(
@@ -77,32 +92,64 @@ ${previousExercises ? `L'utilisateur a déjà fait : ${previousExercises.join(",
 Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
     // =========================
-    // Appel au modèle local LLM
+    // Appel au modèle local LLM avec timeout
     // =========================
-    const llmResponse = await fetch(
-      `${LOCAL_AI_BASE_URL}/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+    const controller = new AbortController();
+    const timeoutMs = 15000; // 15s max
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    let llmResponse: Response;
+
+    try {
+      llmResponse = await fetch(
+        `${LOCAL_AI_BASE_URL}/v1/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "openai/gpt-oss-20b", // si besoin: remplacer par l'id exact renvoyé par /v1/models
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: 0.8,
+            max_tokens: 512,
+            stream: false,
+          }),
+          signal: controller.signal,
         },
-        body: JSON.stringify({
-          model: "openai/gpt-oss-20b", // ⚠️ mets ici l'id exact renvoyé par /v1/models
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.8,
-          max_tokens: 512,
-          stream: false,
+      );
+    } catch (e) {
+      clearTimeout(timeoutId);
+      console.error("[generate-exercise] Error calling local LLM:", e);
+
+      const isAbort =
+        e instanceof DOMException && e.name === "AbortError";
+
+      return new Response(
+        JSON.stringify({
+          error: isAbort
+            ? "Timeout lors de l'appel au modèle local"
+            : "Impossible de joindre le modèle local",
         }),
-      },
-    );
+        {
+          status: isAbort ? 504 : 502,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+    }
+
+    clearTimeout(timeoutId);
 
     if (!llmResponse.ok) {
-      const errorText = await llmResponse.text();
+      const errorText = await llmResponse.text().catch(() => "");
       console.error(
-        "[generate-exercise] Local LLM error:",
+        "[generate-exercise] Local LLM HTTP error:",
         llmResponse.status,
         errorText,
       );
@@ -123,20 +170,33 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
         );
       }
 
-      throw new Error(
-        `Erreur lors de la génération de l'exercice via le modèle local (status ${llmResponse.status})`,
+      return new Response(
+        JSON.stringify({
+          error: `Erreur lors de la génération via le modèle local (status ${llmResponse.status})`,
+        }),
+        {
+          status: 502,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        },
       );
     }
 
-    const llmData = await llmResponse.json();
-    const content = llmData.choices?.[0]?.message?.content;
+    const llmData = await llmResponse.json().catch((e) => {
+      console.error("[generate-exercise] Error parsing LLM JSON:", e);
+      throw new Error("Réponse JSON invalide du modèle local");
+    });
 
-    if (!content) {
+    const content = llmData?.choices?.[0]?.message?.content;
+
+    if (!content || typeof content !== "string") {
       console.error(
-        "[generate-exercise] Réponse vide ou sans 'content' depuis le modèle local:",
+        "[generate-exercise] No valid content from local model:",
         JSON.stringify(llmData),
       );
-      throw new Error("Réponse du modèle local invalide (pas de content)");
+      throw new Error("Réponse du modèle local invalide (pas de content string)");
     }
 
     // =========================
@@ -152,102 +212,18 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
       }
     } catch (parseError) {
       console.error(
-        "[generate-exercise] Failed to parse exercise JSON from local model, raw content:",
+        "[generate-exercise] Failed to parse exercise JSON, raw content:",
         content,
       );
       throw new Error("Format de réponse invalide (JSON strict attendu)");
     }
 
-    console.log("[generate-exercise] Exercise generated:", exercise.title);
+    console.log("[generate-exercise] Exercise generated:", exercise?.title);
 
-    // =======================================
-    // Génération d'images (optionnelle)
-    // =======================================
-    const stepImages: string[] = [];
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-    if (!exercise.stepImagePrompts || !Array.isArray(exercise.stepImagePrompts)) {
-      console.log(
-        "[generate-exercise] Aucun stepImagePrompts valide, skip génération d'images.",
-      );
-    } else if (!LOVABLE_API_KEY) {
-      console.warn(
-        "[generate-exercise] LOVABLE_API_KEY manquante, les stepImages resteront vides.",
-      );
-    } else {
-      console.log(
-        `[generate-exercise] Generating ${exercise.stepImagePrompts.length} images via Lovable AI...`,
-      );
-
-      for (let i = 0; i < exercise.stepImagePrompts.length; i++) {
-        try {
-          const prompt = exercise.stepImagePrompts[i];
-          console.log(
-            `[generate-exercise] Generating image ${i + 1}/${
-              exercise.stepImagePrompts.length
-            }`,
-          );
-
-          const imageResponse = await fetch(
-            "https://ai.gateway.lovable.dev/v1/chat/completions",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-flash-image-preview",
-                messages: [
-                  {
-                    role: "user",
-                    content: prompt,
-                  },
-                ],
-                modalities: ["image", "text"],
-              }),
-            },
-          );
-
-          if (imageResponse.ok) {
-            const imageData = await imageResponse.json();
-            const imageUrl =
-              imageData.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-            if (imageUrl) {
-              stepImages.push(imageUrl);
-              console.log(
-                `[generate-exercise] Image ${i + 1} generated successfully`,
-              );
-            } else {
-              console.warn(
-                `[generate-exercise] Image ${i + 1}: pas d'URL retournée`,
-              );
-              stepImages.push("");
-            }
-          } else if (imageResponse.status === 402) {
-            console.error(
-              "[generate-exercise] Insufficient credits for image generation - stopping",
-            );
-            break;
-          } else {
-            console.error(
-              `[generate-exercise] Failed to generate image ${i + 1}:`,
-              imageResponse.status,
-              await imageResponse.text(),
-            );
-            stepImages.push("");
-          }
-        } catch (imageError) {
-          console.error(
-            `[generate-exercise] Error generating image ${i + 1}:`,
-            imageError,
-          );
-          stepImages.push("");
-        }
-      }
+    // Pas de génération d'images pour l'instant, on renvoie un tableau vide
+    if (!Array.isArray(exercise.stepImages)) {
+      exercise.stepImages = [];
     }
-
-    exercise.stepImages = stepImages;
     delete exercise.stepImagePrompts;
     delete exercise.diagramPrompt;
 
