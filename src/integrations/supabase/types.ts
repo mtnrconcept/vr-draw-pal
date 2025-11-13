@@ -14,7 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      drawing_exercises: {
+        Row: {
+          id: string
+          level: string | null
+          focus: string | null
+          title: string
+          description: string
+          difficulty: string | null
+          duration: string | null
+          steps: string[]
+          tips: string[]
+          focus_points: string[]
+          materials: string[]
+          step_images: string[]
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          level?: string | null
+          focus?: string | null
+          title: string
+          description: string
+          difficulty?: string | null
+          duration?: string | null
+          steps?: string[]
+          tips?: string[]
+          focus_points?: string[]
+          materials?: string[]
+          step_images?: string[]
+          metadata?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          level?: string | null
+          focus?: string | null
+          title?: string
+          description?: string
+          difficulty?: string | null
+          duration?: string | null
+          steps?: string[]
+          tips?: string[]
+          focus_points?: string[]
+          materials?: string[]
+          step_images?: string[]
+          metadata?: Json | null
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
