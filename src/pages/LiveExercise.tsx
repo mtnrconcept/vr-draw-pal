@@ -45,13 +45,21 @@ const LiveExercise = () => {
         body: { level, focus },
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes("402") || error.message?.includes("Crédits insuffisants")) {
+          toast.error("Crédits Lovable AI insuffisants. Allez dans Settings → Workspace → Usage pour ajouter des crédits.");
+          throw new Error("Crédits insuffisants");
+        }
+        throw error;
+      }
       
       setExercise(data.exercise);
       toast.success("Exercice généré ! 🎨");
     } catch (error) {
       console.error("Error:", error);
-      toast.error("Erreur lors de la génération de l'exercice");
+      if (!error.message?.includes("Crédits insuffisants")) {
+        toast.error("Erreur lors de la génération de l'exercice");
+      }
     } finally {
       setIsLoading(false);
     }

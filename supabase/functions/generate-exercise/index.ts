@@ -153,14 +153,20 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
             if (imageUrl) {
               stepImages.push(imageUrl);
               console.log(`Image ${i + 1} generated successfully`);
+            } else {
+              stepImages.push("");
             }
+          } else if (imageResponse.status === 402) {
+            console.error("Insufficient credits for image generation - stopping");
+            // Retourner l'exercice avec les images générées jusqu'ici
+            break;
           } else {
             console.error(`Failed to generate image ${i + 1}:`, imageResponse.status);
-            stepImages.push(""); // Placeholder si échec
+            stepImages.push("");
           }
         } catch (imageError) {
           console.error(`Error generating image ${i + 1}:`, imageError);
-          stepImages.push(""); // Placeholder si échec
+          stepImages.push("");
         }
       }
     }
