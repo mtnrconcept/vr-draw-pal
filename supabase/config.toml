@@ -1,1 +1,10 @@
 project_id = "drsdctqhyedogmvgbmvp"
+
+[functions.drawing-coach]
+verify_jwt = false
+
+[functions.generate-exercise]
+verify_jwt = false
+
+[functions.analyze-drawing]
+verify_jwt = false

@@ -71,6 +71,10 @@ const Exercises = () => {
     }
   };
 
+  const startLiveExercise = (focus: string, level: string) => {
+    navigate('/live-exercise', { state: { level, focus } });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -85,12 +89,23 @@ const Exercises = () => {
             Retour
           </Button>
           
-          <h1 className="text-4xl font-bold text-foreground mb-2">
-            Bibliothèque d'exercices
-          </h1>
-          <p className="text-muted-foreground text-lg">
-            Progressez à votre rythme avec des exercices adaptés à votre niveau
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-foreground mb-2">
+                Bibliothèque d'exercices
+              </h1>
+              <p className="text-muted-foreground text-lg">
+                Progressez à votre rythme avec des exercices adaptés à votre niveau
+              </p>
+            </div>
+            <Button
+              onClick={() => startLiveExercise("dessin général", "Débutant")}
+              className="bg-gradient-to-r from-primary to-secondary text-white shadow-[var(--shadow-soft)]"
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Exercice IA personnalisé
+            </Button>
+          </div>
         </div>
 
         {/* Exercises Grid */}
@@ -122,14 +137,24 @@ const Exercises = () => {
                   <span className="text-sm text-muted-foreground">
                     ⏱️ {exercise.duration}
                   </span>
-                  <Button
-                    size="sm"
-                    onClick={() => navigate('/project', { state: { exerciseId: exercise.id } })}
-                    className="bg-primary hover:bg-primary/90"
-                  >
-                    <Camera className="mr-2 h-4 w-4" />
-                    Démarrer
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => startLiveExercise(exercise.title.toLowerCase(), exercise.level)}
+                      className="border-primary text-primary hover:bg-primary/10"
+                    >
+                      ✨ IA
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => navigate('/project', { state: { exerciseId: exercise.id } })}
+                      className="bg-primary hover:bg-primary/90"
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      AR
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
