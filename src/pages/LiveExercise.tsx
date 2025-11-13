@@ -17,6 +17,7 @@ interface Exercise {
   duration: string;
   materials: string[];
   difficulty: string;
+  stepDiagram?: string;
 }
 
 const LiveExercise = () => {
@@ -165,6 +166,17 @@ const LiveExercise = () => {
               <Sparkles className="mr-2 h-5 w-5 text-primary" />
               Étape actuelle
             </h2>
+            
+            {/* Step Diagram */}
+            {exercise.stepDiagram && (
+              <div className="mb-4 rounded-lg overflow-hidden border border-border">
+                <img 
+                  src={exercise.stepDiagram} 
+                  alt="Schéma des étapes" 
+                  className="w-full h-auto"
+                />
+              </div>
+            )}
             
             <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg p-6 mb-4">
               <p className="text-lg leading-relaxed text-card-foreground">
