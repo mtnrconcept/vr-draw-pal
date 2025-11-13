@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const LOCAL_MODEL_ENDPOINT = "https://f292749b4931.ngrok-free.app/v1/chat/completions";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -13,10 +15,6 @@ serve(async (req) => {
   try {
     const { level, focus, previousExercises } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
 
     console.log("Generating exercise for level:", level, "focus:", focus);
 
@@ -63,19 +61,20 @@ ${previousExercises ? `L'utilisateur a déjà fait : ${previousExercises.join(",
 
 Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(LOCAL_MODEL_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "openai/gpt-oss-20b",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.8,
+        temperature: 0.7,
+        max_tokens: -1,
+        stream: false,
       }),
     });
 
@@ -123,12 +122,17 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
     const stepImages: string[] = [];
     if (exercise.stepImagePrompts && Array.isArray(exercise.stepImagePrompts)) {
       console.log(`Generating ${exercise.stepImagePrompts.length} step-by-step images...`);
-      
+
       for (let i = 0; i < exercise.stepImagePrompts.length; i++) {
         try {
+          if (!LOVABLE_API_KEY) {
+            console.warn("LOVABLE_API_KEY not configured - skipping image generation");
+            stepImages.push("");
+            continue;
+          }
           const prompt = exercise.stepImagePrompts[i];
           console.log(`Generating image ${i + 1}/${exercise.stepImagePrompts.length}...`);
-          
+
           const imageResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
             method: "POST",
             headers: {
