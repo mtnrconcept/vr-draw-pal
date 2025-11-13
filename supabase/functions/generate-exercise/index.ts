@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 const LOCAL_AI_BASE_URL =
-  Deno.env.get("LOCAL_AI_BASE_URL") ?? "https://f292749b4931.ngrok-free.app";
+  Deno.env.get("LOCAL_AI_BASE_URL") ?? "https://e7c27e33b478.ngrok-free.app";
 
 serve(async (req) => {
   // Préflight CORS
