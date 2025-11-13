@@ -151,13 +151,13 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
     const timeoutId = setTimeout(()=>controller.abort(), timeoutMs);
     let llmResponse;
     try {
-      llmResponse = await fetch(`${LOCAL_AI_BASE_URL}/v1/chat/completions`, {
+      llmResponse = await fetch(`${LOCAL_MODEL_ENDPOINT}/v1/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "openai/gpt-oss-20b",
+          model: LOCAL_MODEL_NAME,
           messages: [
             {
               role: "system",

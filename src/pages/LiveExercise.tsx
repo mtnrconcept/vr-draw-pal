@@ -99,7 +99,7 @@ const LiveExercise = () => {
   };
 
   const completeStep = () => {
-    if (!exercise || currentStep >= exercise.steps.length - 1) return;
+    if (!exercise || !exercise.steps || currentStep >= exercise.steps.length - 1) return;
     
     setCompletedSteps([...completedSteps, currentStep]);
     setCurrentStep(currentStep + 1);
@@ -144,7 +144,7 @@ const LiveExercise = () => {
     return <DrawingLoadingAnimation />;
   }
 
-  if (!exercise) {
+  if (!exercise || !exercise.steps || exercise.steps.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -190,7 +190,7 @@ const LiveExercise = () => {
 
           {/* Materials */}
           <div className="flex flex-wrap gap-2 mb-4">
-            {exercise.materials.map((material, i) => (
+            {exercise.materials?.map((material, i) => (
               <Badge key={i} variant="outline" className="border-accent text-accent-foreground">
                 {material}
               </Badge>
@@ -229,7 +229,7 @@ const LiveExercise = () => {
             </div>
 
             {/* Focus Points */}
-            {exercise.focusPoints.length > 0 && (
+            {exercise.focusPoints && exercise.focusPoints.length > 0 && (
               <div className="mb-4">
                 <h3 className="font-semibold mb-2 text-sm text-muted-foreground">Points d'attention :</h3>
                 <ul className="space-y-1">
@@ -245,14 +245,14 @@ const LiveExercise = () => {
 
             <Button 
               onClick={completeStep}
-              disabled={currentStep >= exercise.steps.length - 1}
+              disabled={!exercise.steps || currentStep >= exercise.steps.length - 1}
               className="w-full bg-primary hover:bg-primary/90"
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Étape terminée
             </Button>
 
-            {currentStep >= exercise.steps.length - 1 && (
+            {exercise.steps && currentStep >= exercise.steps.length - 1 && (
               <div className="mt-4 p-4 bg-accent/10 rounded-lg text-center">
                 <p className="text-accent-foreground font-semibold">🎉 Exercice terminé !</p>
                 <Button 
@@ -272,7 +272,7 @@ const LiveExercise = () => {
             <Card className="p-6 border-border shadow-[var(--shadow-card)]">
               <h2 className="text-xl font-semibold mb-4 text-card-foreground">💡 Conseils</h2>
               <ul className="space-y-3">
-                {exercise.tips.map((tip, i) => (
+                {exercise.tips?.map((tip, i) => (
                   <li key={i} className="text-sm text-card-foreground bg-muted rounded-lg p-3">
                     {tip}
                   </li>
@@ -322,7 +322,7 @@ const LiveExercise = () => {
             <Card className="p-6 border-border shadow-[var(--shadow-card)]">
               <h2 className="text-xl font-semibold mb-4 text-card-foreground">📊 Progression</h2>
               <div className="space-y-2">
-                {exercise.steps.map((step, i) => (
+                {exercise.steps?.map((step, i) => (
                   <div 
                     key={i}
                     className={`p-3 rounded-lg text-sm ${
