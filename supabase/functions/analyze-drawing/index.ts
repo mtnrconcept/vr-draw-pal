@@ -5,6 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const LOCAL_MODEL_ENDPOINT =
+  Deno.env.get("LOCAL_MODEL_ENDPOINT") ??
+  "https://e7c27e33b478.ngrok-free.app/v1/chat/completions";
+const LOCAL_MODEL_NAME =
+  Deno.env.get("LOCAL_MODEL_NAME") ?? "openai/gpt-oss-20b";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -12,11 +18,6 @@ serve(async (req) => {
 
   try {
     const { exerciseTitle, userProgress, specificQuestion } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
 
     console.log("Analyzing drawing progress for:", exerciseTitle);
 
@@ -42,14 +43,13 @@ Ton style est bienveillant, précis et inspirant. Tu utilises des émojis pertin
       userPrompt += `\nDonne un feedback encourageant et un conseil technique pour progresser.`;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(LOCAL_MODEL_ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: LOCAL_MODEL_NAME,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -60,8 +60,8 @@ Ton style est bienveillant, précis et inspirant. Tu utilises des émojis pertin
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      
+      console.error("Model endpoint error:", response.status, errorText);
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Trop de requêtes, veuillez réessayer." }), 
