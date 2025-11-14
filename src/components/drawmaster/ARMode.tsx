@@ -6,7 +6,7 @@ import { Download } from "lucide-react";
 import { toast } from "sonner";
 import * as THREE from "three";
 // @ts-ignore - AR.js types not available
-import THREEx from "@ar-js-org/ar.js/three.js/build/ar-threex";
+import * as THREEx from "@ar-js-org/ar.js/three.js/build/ar-threex";
 
 interface ARModeProps {
   referenceImage: string | null;
@@ -44,11 +44,11 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
           alpha: true,
           preserveDrawingBuffer: true
         });
-        renderer.setClearColor(new THREE.Color('lightgrey'), 0);
+        renderer.setClearColor(new THREE.Color("lightgrey"), 0);
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.domElement.style.position = 'absolute';
-        renderer.domElement.style.top = '0px';
-        renderer.domElement.style.left = '0px';
+        renderer.domElement.style.position = "absolute";
+        renderer.domElement.style.top = "0px";
+        renderer.domElement.style.left = "0px";
         containerRef.current?.appendChild(renderer.domElement);
 
         // Create camera
@@ -56,8 +56,8 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         scene.add(camera);
 
         // Initialize AR.js source (video)
-        const arToolkitSource = new THREEx.ArToolkitSource({
-          sourceType: 'webcam',
+        const arToolkitSource = new (THREEx as any).ArToolkitSource({
+          sourceType: "webcam",
           sourceWidth: 1280,
           sourceHeight: 960,
           displayWidth: window.innerWidth,
@@ -79,12 +79,13 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
           }
         };
 
-        window.addEventListener('resize', onResize);
+        window.addEventListener("resize", onResize);
 
         // Initialize AR.js context
-        const arToolkitContext = new THREEx.ArToolkitContext({
-          cameraParametersUrl: 'https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/camera_para.dat',
-          detectionMode: 'mono',
+        const arToolkitContext = new (THREEx as any).ArToolkitContext({
+          cameraParametersUrl:
+            "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/camera_para.dat",
+          detectionMode: "mono",
           maxDetectionRate: 60,
           canvasWidth: 1280,
           canvasHeight: 960,
@@ -99,10 +100,11 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         scene.add(markerRoot);
 
         // Initialize marker controls (Hiro pattern)
-        new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
-          type: 'pattern',
-          patternUrl: 'https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro',
-          changeMatrixMode: 'cameraTransformMatrix'
+        new (THREEx as any).ArMarkerControls(arToolkitContext, markerRoot, {
+          type: "pattern",
+          patternUrl:
+            "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro",
+          changeMatrixMode: "cameraTransformMatrix",
         });
 
         // Add ambient light
@@ -115,7 +117,7 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
           renderer,
           markerRoot,
           arToolkitSource,
-          arToolkitContext
+          arToolkitContext,
         };
 
         toast.success("Système AR initialisé");
@@ -148,13 +150,13 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
   useEffect(() => {
     if (referenceImage && isTracking && sceneRef.current.markerRoot) {
       const { markerRoot } = sceneRef.current;
-      
+
       // Remove old mesh if exists
       if (sceneRef.current.mesh) {
         markerRoot.remove(sceneRef.current.mesh);
         sceneRef.current.mesh.geometry.dispose();
         if (Array.isArray(sceneRef.current.mesh.material)) {
-          sceneRef.current.mesh.material.forEach(m => m.dispose());
+          sceneRef.current.mesh.material.forEach((m) => m.dispose());
         } else {
           sceneRef.current.mesh.material.dispose();
         }
@@ -164,7 +166,7 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
       const loader = new THREE.TextureLoader();
       loader.load(referenceImage, (texture) => {
         sceneRef.current.texture = texture;
-        
+
         const aspectRatio = texture.image.width / texture.image.height;
         const planeWidth = 1.5; // Size of the plane relative to marker
         const planeHeight = planeWidth / aspectRatio;
@@ -174,15 +176,15 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
           map: texture,
           transparent: true,
           opacity: ghostMentorEnabled ? 0.5 : 0.7,
-          side: THREE.DoubleSide
+          side: THREE.DoubleSide,
         });
 
         const mesh = new THREE.Mesh(geometry, material);
-        
+
         // Position slightly above the marker
         mesh.position.y = planeHeight / 2;
         mesh.rotation.x = -Math.PI / 2; // Lay flat on the marker
-        
+
         sceneRef.current.mesh = mesh;
         markerRoot.add(mesh);
 
@@ -195,8 +197,10 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
   useEffect(() => {
     if (!isTracking) return;
 
-    const { scene, camera, renderer, arToolkitSource, arToolkitContext } = sceneRef.current;
-    if (!scene || !camera || !renderer || !arToolkitSource || !arToolkitContext) return;
+    const { scene, camera, renderer, arToolkitSource, arToolkitContext } =
+      sceneRef.current;
+    if (!scene || !camera || !renderer || !arToolkitSource || !arToolkitContext)
+      return;
 
     const animate = () => {
       if (!isTracking) return;
@@ -232,10 +236,11 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
 
   const downloadAnchor = () => {
     // Download the Hiro marker (standard AR.js marker)
-    const link = document.createElement('a');
-    link.href = 'https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png';
-    link.download = 'hiro-marker.png';
-    link.target = '_blank';
+    const link = document.createElement("a");
+    link.href =
+      "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png";
+    link.download = "hiro-marker.png";
+    link.target = "_blank";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -246,15 +251,16 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
     <div className="space-y-4">
       <Alert>
         <AlertDescription>
-          Le mode AR utilise AR.js pour un tracking 3D réel sur 6 axes (position X,Y,Z + rotation X,Y,Z).
-          Téléchargez le marqueur Hiro, imprimez-le (minimum 10x10cm), et positionnez-le sur votre feuille.
+          Le mode AR utilise AR.js pour un tracking 3D réel sur 6 axes (position
+          X,Y,Z + rotation X,Y,Z). Téléchargez le marqueur Hiro, imprimez-le
+          (minimum 10x10cm), et positionnez-le sur votre feuille.
         </AlertDescription>
       </Alert>
 
-      <div 
+      <div
         ref={containerRef}
         className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden"
-        style={{ touchAction: 'none' }}
+        style={{ touchAction: "none" }}
       >
         {ghostMentorEnabled && isTracking && (
           <div className="absolute top-4 right-4 bg-primary/20 text-primary-foreground px-3 py-1 rounded-full text-sm backdrop-blur-sm z-10">
@@ -265,7 +271,9 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         {!isTracking && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
             <div className="text-center text-white space-y-4">
-              <p className="mb-4">Positionnez le marqueur Hiro dans le champ de vision</p>
+              <p className="mb-4">
+                Positionnez le marqueur Hiro dans le champ de vision
+              </p>
               <Button onClick={startTracking} disabled={!referenceImage}>
                 Démarrer le tracking AR.js
               </Button>
@@ -289,7 +297,8 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
           <p>3. Placez-le sur votre surface de dessin</p>
           <p>4. Chargez une image de référence et démarrez le tracking</p>
           <p className="text-primary font-medium mt-4">
-            Le marqueur permet un tracking 6DoF complet : l'image suivra tous vos mouvements de caméra
+            Le marqueur permet un tracking 6DoF complet : l&apos;image suivra
+            tous vos mouvements de caméra
           </p>
         </div>
       </Card>
