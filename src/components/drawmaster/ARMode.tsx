@@ -2,183 +2,192 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import AnchorManager from "./AnchorManager";
-
-interface Anchor {
-  id: string;
-  name: string;
-  description: string | null;
-  image_url: string;
-  pattern_url: string | null;
-  created_at: string;
-}
+import * as THREE from "three";
+// @ts-ignore - AR.js types not available
+import * as THREEx from "@ar-js-org/ar.js/three.js/build/ar-threex";
 
 interface ARModeProps {
   referenceImage: string | null;
   ghostMentorEnabled: boolean;
 }
 
+type SceneState = {
+  scene?: THREE.Scene;
+  camera?: THREE.Camera;
+  renderer?: THREE.WebGLRenderer;
+  markerRoot?: THREE.Group;
+  mesh?: THREE.Mesh;
+  texture?: THREE.Texture;
+  arToolkitSource?: any;
+  arToolkitContext?: any;
+  resizeHandler?: () => void;
+};
+
 const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
   const [isTracking, setIsTracking] = useState(false);
-  const [selectedAnchor, setSelectedAnchor] = useState<Anchor | null>(null);
-  const [anchorMode, setAnchorMode] = useState<"hiro" | "custom">("hiro");
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const sceneRef = useRef<{
-    scene?: any;
-    camera?: any;
-    renderer?: any;
-    markerRoot?: any;
-    mesh?: any;
-    texture?: any;
-    arToolkitSource?: any;
-    arToolkitContext?: any;
-  }>({});
+  const sceneRef = useRef<SceneState>({});
   const animationFrameRef = useRef<number>();
+  const initializedRef = useRef(false);
 
-  // Initialize AR.js with real marker tracking
-  useEffect(() => {
+  /**
+   * Initialisation AR.js (appelée une seule fois, sur clic utilisateur)
+   */
+  const initAR = async () => {
+    if (initializedRef.current) return;
     if (!containerRef.current) return;
 
-    const initAR = async () => {
-      try {
-        // Wait for AR.js to be loaded
-        const win = window as any;
-        if (!win.THREEx || !win.THREE) {
-          toast.error("AR.js n'est pas chargé");
-          return;
+    setIsInitializing(true);
+
+    try {
+      // Create Three.js scene
+      const scene = new THREE.Scene();
+
+      // Create renderer
+      const renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        alpha: true,
+        preserveDrawingBuffer: true,
+      });
+      renderer.setClearColor(new THREE.Color("lightgrey"), 0);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.domElement.style.position = "absolute";
+      renderer.domElement.style.top = "0px";
+      renderer.domElement.style.left = "0px";
+      containerRef.current.appendChild(renderer.domElement);
+
+      // Create camera
+      const camera = new THREE.Camera();
+      scene.add(camera);
+
+      // Initialize AR.js source (video)
+      const arToolkitSource = new (THREEx as any).ArToolkitSource({
+        sourceType: "webcam",
+        // important pour mobile : tu peux forcer la back camera via constraints si besoin
+        // sourceWidth: 1280,
+        // sourceHeight: 960,
+        displayWidth: window.innerWidth,
+        displayHeight: window.innerHeight,
+      });
+
+      // On resize handler
+      const resizeHandler = () => {
+        arToolkitSource.onResizeElement();
+        arToolkitSource.copyElementSizeTo(renderer.domElement);
+        if (arToolkitContext.arController) {
+          arToolkitSource.copyElementSizeTo(
+            arToolkitContext.arController.canvas
+          );
         }
+      };
 
-        const THREE = win.THREE;
-        const THREEx = win.THREEx;
+      // Initialize AR.js context
+      const arToolkitContext = new (THREEx as any).ArToolkitContext({
+        cameraParametersUrl:
+          "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/camera_para.dat",
+        detectionMode: "mono",
+        maxDetectionRate: 60,
+        canvasWidth: 1280,
+        canvasHeight: 960,
+      });
 
-        // Create Three.js scene
-        const scene = new THREE.Scene();
-        
-        // Create renderer
-        const renderer = new THREE.WebGLRenderer({
-          antialias: true,
-          alpha: true,
-          preserveDrawingBuffer: true
-        });
-        renderer.setClearColor(new THREE.Color("lightgrey"), 0);
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.domElement.style.position = "absolute";
-        renderer.domElement.style.top = "0px";
-        renderer.domElement.style.left = "0px";
-        containerRef.current?.appendChild(renderer.domElement);
+      // Init camera + projection matrix une fois le contexte prêt
+      arToolkitContext.init(() => {
+        camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+      });
 
-        // Create camera
-        const camera = new THREE.Camera();
-        scene.add(camera);
+      // Init video source APRÈS le clic utilisateur
+      // -> cela déclenche getUserMedia dans un contexte user-gesture
+      arToolkitSource.init(() => {
+        resizeHandler();
+      });
 
-        // Initialize AR.js source (video)
-        const arToolkitSource = new THREEx.ArToolkitSource({
-          sourceType: "webcam",
-          sourceWidth: 1280,
-          sourceHeight: 960,
-          displayWidth: window.innerWidth,
-          displayHeight: window.innerHeight,
-        });
+      window.addEventListener("resize", resizeHandler);
 
-        arToolkitSource.init(() => {
-          setTimeout(() => {
-            onResize();
-          }, 2000);
-        });
+      // Create marker root (this will follow the marker)
+      const markerRoot = new THREE.Group();
+      scene.add(markerRoot);
 
-        // Handle window resize
-        const onResize = () => {
-          arToolkitSource.onResizeElement();
-          arToolkitSource.copyElementSizeTo(renderer.domElement);
-          if (arToolkitContext?.arController) {
-            arToolkitSource.copyElementSizeTo(arToolkitContext.arController.canvas);
-          }
-        };
+      // Initialize marker controls (Hiro pattern)
+      new (THREEx as any).ArMarkerControls(arToolkitContext, markerRoot, {
+        type: "pattern",
+        patternUrl:
+          "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro",
+        changeMatrixMode: "cameraTransformMatrix",
+      });
 
-        window.addEventListener("resize", onResize);
+      // Add ambient light
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+      scene.add(ambientLight);
 
-        // Initialize AR.js context
-        const arToolkitContext = new THREEx.ArToolkitContext({
-          cameraParametersUrl:
-            "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/camera_para.dat",
-          detectionMode: "mono",
-          maxDetectionRate: 60,
-          canvasWidth: 1280,
-          canvasHeight: 960,
-        });
+      sceneRef.current = {
+        scene,
+        camera,
+        renderer,
+        markerRoot,
+        arToolkitSource,
+        arToolkitContext,
+        resizeHandler,
+      };
 
-        arToolkitContext.init(() => {
-          camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
-        });
+      initializedRef.current = true;
+      toast.success("Système AR initialisé, la caméra devrait s’activer.");
+    } catch (error) {
+      console.error("Erreur d'initialisation AR:", error);
+      toast.error("Impossible d'initialiser l'AR (caméra / permissions ?)");
+    } finally {
+      setIsInitializing(false);
+    }
+  };
 
-        // Create marker root (this will follow the marker)
-        const markerRoot = new THREE.Group();
-        scene.add(markerRoot);
-
-        // Initialize marker controls based on mode
-        if (anchorMode === "custom" && selectedAnchor) {
-          // Use custom anchor with image tracking
-          new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
-            type: "nft",
-            descriptorsUrl: selectedAnchor.image_url.replace(/\.[^/.]+$/, ""),
-            changeMatrixMode: "cameraTransformMatrix",
-          });
-        } else {
-          // Use default Hiro pattern
-          new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
-            type: "pattern",
-            patternUrl:
-              "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro",
-            changeMatrixMode: "cameraTransformMatrix",
-          });
-        }
-
-        // Add ambient light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-        scene.add(ambientLight);
-
-        sceneRef.current = {
-          scene,
-          camera,
-          renderer,
-          markerRoot,
-          arToolkitSource,
-          arToolkitContext,
-        };
-
-        toast.success("Système AR initialisé");
-      } catch (error) {
-        console.error("Erreur d'initialisation AR:", error);
-        toast.error("Impossible d'initialiser l'AR");
-      }
-    };
-
-    initAR();
-
+  /**
+   * Nettoyage global à l’unmount
+   */
+  useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      if (sceneRef.current.renderer) {
-        sceneRef.current.renderer.dispose();
-        sceneRef.current.renderer.domElement.remove();
+      const {
+        renderer,
+        texture,
+        arToolkitSource,
+        resizeHandler,
+        arToolkitContext,
+      } = sceneRef.current;
+
+      if (renderer) {
+        renderer.dispose();
+        renderer.domElement.remove();
       }
-      if (sceneRef.current.texture) {
-        sceneRef.current.texture.dispose();
+      if (texture) {
+        texture.dispose();
       }
-      if (sceneRef.current.arToolkitSource) {
-        sceneRef.current.arToolkitSource.domElement?.remove();
+      if (arToolkitSource && arToolkitSource.domElement) {
+        arToolkitSource.domElement.remove();
+      }
+      if (resizeHandler) {
+        window.removeEventListener("resize", resizeHandler);
+      }
+      if (arToolkitContext && arToolkitContext.arController) {
+        arToolkitContext.arController.dispose?.();
       }
     };
   }, []);
 
-  // Add reference image to marker when available
+  /**
+   * Ajout / mise à jour de l’image de référence sur le marqueur
+   */
   useEffect(() => {
-    if (referenceImage && isTracking && sceneRef.current.markerRoot) {
+    if (
+      referenceImage &&
+      isTracking &&
+      sceneRef.current.markerRoot &&
+      sceneRef.current.scene
+    ) {
       const { markerRoot } = sceneRef.current;
 
       // Remove old mesh if exists
@@ -192,8 +201,6 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         }
       }
 
-      // Load and add new image
-      const THREE = (window as any).THREE;
       const loader = new THREE.TextureLoader();
       loader.load(referenceImage, (texture) => {
         sceneRef.current.texture = texture;
@@ -212,24 +219,32 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
 
         const mesh = new THREE.Mesh(geometry, material);
 
-        // Position slightly above the marker
+        // Position slightly au-dessus du marker
         mesh.position.y = planeHeight / 2;
         mesh.rotation.x = -Math.PI / 2; // Lay flat on the marker
 
         sceneRef.current.mesh = mesh;
         markerRoot.add(mesh);
 
-        toast.success("Image de référence chargée");
+        toast.success("Image de référence chargée sur le marqueur");
       });
     }
   }, [referenceImage, isTracking, ghostMentorEnabled]);
 
-  // AR.js rendering loop
+  /**
+   * Boucle de rendu AR.js
+   */
   useEffect(() => {
     if (!isTracking) return;
 
-    const { scene, camera, renderer, arToolkitSource, arToolkitContext } =
-      sceneRef.current;
+    const {
+      scene,
+      camera,
+      renderer,
+      arToolkitSource,
+      arToolkitContext,
+    } = sceneRef.current;
+
     if (!scene || !camera || !renderer || !arToolkitSource || !arToolkitContext)
       return;
 
@@ -238,12 +253,10 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
 
       animationFrameRef.current = requestAnimationFrame(animate);
 
-      // Update AR.js
       if (arToolkitSource.ready) {
         arToolkitContext.update(arToolkitSource.domElement);
       }
 
-      // Render the scene
       renderer.render(scene, camera);
     };
 
@@ -256,17 +269,25 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
     };
   }, [isTracking]);
 
-  const startTracking = () => {
+  /**
+   * Démarrage du tracking (et init AR si nécessaire)
+   */
+  const startTracking = async () => {
     if (!referenceImage) {
       toast.error("Chargez une image de référence d'abord");
       return;
     }
-    if (anchorMode === "custom" && !selectedAnchor) {
-      toast.error("Sélectionnez une ancre personnalisée d'abord");
+
+    // Init AR (caméra) sur clic utilisateur
+    await initAR();
+
+    if (!initializedRef.current) {
+      // si init a échoué (permissions refusées, etc.)
       return;
     }
+
     setIsTracking(true);
-    toast.success(`Tracking ${anchorMode === "custom" ? "ancre personnalisée" : "Hiro"} démarré`);
+    toast.success("Tracking AR.js démarré");
   };
 
   const downloadAnchor = () => {
@@ -286,57 +307,13 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
     <div className="space-y-4">
       <Alert>
         <AlertDescription>
-          Le mode AR utilise un système de tracking 3D sur 6 axes. Choisissez entre
-          le marqueur Hiro standard ou créez vos propres ancres personnalisées à
-          partir de n'importe quel objet ou marque au stylo.
+          Le mode AR utilise AR.js pour un tracking 3D réel sur 6 axes (position
+          X,Y,Z + rotation X,Y,Z). Téléchargez le marqueur Hiro, imprimez-le
+          (minimum 10x10cm), et positionnez-le sur votre feuille. La caméra ne
+          s'activera qu&apos;à la première pression sur &quot;Démarrer le
+          tracking&quot; (exigence navigateur).
         </AlertDescription>
       </Alert>
-
-      <Tabs value={anchorMode} onValueChange={(v) => setAnchorMode(v as "hiro" | "custom")}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="hiro">Marqueur Hiro</TabsTrigger>
-          <TabsTrigger value="custom">Ancres Personnalisées</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="hiro" className="space-y-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Marqueur AR.js</h3>
-              <Button size="sm" variant="outline" onClick={downloadAnchor}>
-                <Download className="w-4 h-4 mr-2" />
-                Télécharger Marqueur Hiro
-              </Button>
-            </div>
-
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p>1. Téléchargez le marqueur Hiro</p>
-              <p>2. Imprimez-le en taille minimum 10x10cm sur papier blanc</p>
-              <p>3. Placez-le sur votre surface de dessin</p>
-              <p>4. Chargez une image de référence et démarrez le tracking</p>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="custom" className="space-y-4">
-          <AnchorManager
-            onSelectAnchor={(anchor) => {
-              setSelectedAnchor(anchor);
-              toast.success(`Ancre "${anchor.name}" sélectionnée`);
-            }}
-            selectedAnchorId={selectedAnchor?.id || null}
-          />
-          
-          {selectedAnchor && (
-            <Alert>
-              <AlertDescription>
-                Ancre sélectionnée : <strong>{selectedAnchor.name}</strong>
-                <br />
-                Positionnez cet objet bien visible dans le champ de vision de la caméra.
-              </AlertDescription>
-            </Alert>
-          )}
-        </TabsContent>
-      </Tabs>
 
       <div
         ref={containerRef}
@@ -352,21 +329,46 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         {!isTracking && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
             <div className="text-center text-white space-y-4">
-              <p className="mb-4">
-                {anchorMode === "custom" && selectedAnchor
-                  ? `Positionnez votre ancre "${selectedAnchor.name}" dans le champ de vision`
-                  : "Positionnez le marqueur dans le champ de vision"}
+              <p className="mb-2">
+                Positionnez le marqueur Hiro dans le champ de vision
               </p>
-              <Button 
-                onClick={startTracking} 
-                disabled={!referenceImage || (anchorMode === "custom" && !selectedAnchor)}
+              <p className="mb-4 text-xs opacity-80">
+                Au clic, la caméra sera sollicitée. Acceptez l&apos;accès pour
+                activer l&apos;AR.
+              </p>
+              <Button
+                onClick={startTracking}
+                disabled={!referenceImage || isInitializing}
               >
-                Démarrer le tracking
+                {isInitializing
+                  ? "Initialisation AR..."
+                  : "Démarrer le tracking AR.js"}
               </Button>
             </div>
           </div>
         )}
       </div>
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold">Marqueur AR.js</h3>
+          <Button size="sm" variant="outline" onClick={downloadAnchor}>
+            <Download className="w-4 h-4 mr-2" />
+            Télécharger Marqueur Hiro
+          </Button>
+        </div>
+
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <p>1. Téléchargez le marqueur Hiro</p>
+          <p>2. Imprimez-le en taille minimum 10x10cm sur papier blanc</p>
+          <p>3. Placez-le sur votre surface de dessin</p>
+          <p>4. Chargez une image de référence et démarrez le tracking</p>
+          <p className="text-primary font-medium mt-4">
+            Le marqueur permet un tracking 6DoF complet : l&apos;image suivra
+            tous vos mouvements de caméra.
+          </p>
+        </div>
+      </Card>
 
       {isTracking && (
         <Button
