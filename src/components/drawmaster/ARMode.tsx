@@ -4,9 +4,6 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
-import * as THREE from "three";
-// @ts-ignore - AR.js types not available
-import * as THREEx from "@ar-js-org/ar.js/three.js/build/ar-threex";
 
 interface ARModeProps {
   referenceImage: string | null;
@@ -18,12 +15,12 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<{
-    scene?: THREE.Scene;
-    camera?: THREE.Camera;
-    renderer?: THREE.WebGLRenderer;
-    markerRoot?: THREE.Group;
-    mesh?: THREE.Mesh;
-    texture?: THREE.Texture;
+    scene?: any;
+    camera?: any;
+    renderer?: any;
+    markerRoot?: any;
+    mesh?: any;
+    texture?: any;
     arToolkitSource?: any;
     arToolkitContext?: any;
   }>({});
@@ -35,6 +32,15 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
 
     const initAR = async () => {
       try {
+        // Wait for AR.js to be loaded
+        if (!window.THREEx || !window.THREE) {
+          toast.error("AR.js n'est pas chargé");
+          return;
+        }
+
+        const THREE = window.THREE;
+        const THREEx = window.THREEx;
+
         // Create Three.js scene
         const scene = new THREE.Scene();
         
@@ -56,7 +62,7 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         scene.add(camera);
 
         // Initialize AR.js source (video)
-        const arToolkitSource = new (THREEx as any).ArToolkitSource({
+        const arToolkitSource = new THREEx.ArToolkitSource({
           sourceType: "webcam",
           sourceWidth: 1280,
           sourceHeight: 960,
@@ -82,7 +88,7 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         window.addEventListener("resize", onResize);
 
         // Initialize AR.js context
-        const arToolkitContext = new (THREEx as any).ArToolkitContext({
+        const arToolkitContext = new THREEx.ArToolkitContext({
           cameraParametersUrl:
             "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/camera_para.dat",
           detectionMode: "mono",
@@ -100,7 +106,7 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
         scene.add(markerRoot);
 
         // Initialize marker controls (Hiro pattern)
-        new (THREEx as any).ArMarkerControls(arToolkitContext, markerRoot, {
+        new THREEx.ArMarkerControls(arToolkitContext, markerRoot, {
           type: "pattern",
           patternUrl:
             "https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/data/patt.hiro",
@@ -163,6 +169,7 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
       }
 
       // Load and add new image
+      const THREE = window.THREE;
       const loader = new THREE.TextureLoader();
       loader.load(referenceImage, (texture) => {
         sceneRef.current.texture = texture;
