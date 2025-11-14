@@ -33,13 +33,14 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
     const initAR = async () => {
       try {
         // Wait for AR.js to be loaded
-        if (!window.THREEx || !window.THREE) {
+        const win = window as any;
+        if (!win.THREEx || !win.THREE) {
           toast.error("AR.js n'est pas chargé");
           return;
         }
 
-        const THREE = window.THREE;
-        const THREEx = window.THREEx;
+        const THREE = win.THREE;
+        const THREEx = win.THREEx;
 
         // Create Three.js scene
         const scene = new THREE.Scene();
@@ -169,7 +170,7 @@ const ARMode = ({ referenceImage, ghostMentorEnabled }: ARModeProps) => {
       }
 
       // Load and add new image
-      const THREE = window.THREE;
+      const THREE = (window as any).THREE;
       const loader = new THREE.TextureLoader();
       loader.load(referenceImage, (texture) => {
         sceneRef.current.texture = texture;
