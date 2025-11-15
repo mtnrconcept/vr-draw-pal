@@ -49,6 +49,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     { id: string; label: string; ratioX: number; ratioY: number }[]
   >([]);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [anchorPlacementMode, setAnchorPlacementMode] = useState<"manual" | "auto">("manual");
 
   const handleOverlayUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -328,6 +329,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   };
 
   const detectMarkersAutomatically = async () => {
+    setAnchorPlacementMode("auto");
     const canvas = overlayCanvasRef.current;
     if (!canvas || !overlayImage) {
       toast.error("Aucune image à analyser");
@@ -380,6 +382,14 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     } finally {
       setIsDetecting(false);
     }
+  };
+
+  const enableManualPlacement = () => {
+    if (isDetecting) return;
+    setAnchorPlacementMode("manual");
+    toast.success(
+      "Placement manuel activé. Cliquez sur l'image de référence pour ajouter ou ajuster les ancres."
+    );
   };
 
   const stopCameraStream = () => {
@@ -656,6 +666,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
           <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black border border-border">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" />
           </div>
+          <canvas ref={canvasRef} className="hidden" />
 
           <div className="flex gap-2">
             {!streamActive ? (
@@ -684,18 +695,28 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
         <div className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <p className="text-xs text-muted-foreground mb-2">
-                Cliquez sur l'image pour placer les points d'ancrage virtuels, ou utilisez la détection automatique.
-              </p>
-              <div className="space-y-2">
-                <Button 
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <Button
                   onClick={detectMarkersAutomatically}
                   disabled={isDetecting}
-                  className="w-full"
-                  variant="secondary"
+                  variant={anchorPlacementMode === "auto" ? "default" : "secondary"}
                 >
-                  {isDetecting ? "Détection en cours..." : "🎯 Détecter automatiquement les marqueurs"}
+                  {isDetecting ? "Détection en cours..." : "Auto detection"}
                 </Button>
+                <Button
+                  onClick={enableManualPlacement}
+                  variant={anchorPlacementMode === "manual" ? "default" : "outline"}
+                  disabled={isDetecting}
+                >
+                  Placement manuel
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mb-2">
+                {anchorPlacementMode === "manual"
+                  ? "Cliquez sur l'image pour placer les points d'ancrage virtuels dans l'ordre indiqué."
+                  : "Utilisez l'auto détection pour placer automatiquement les ancres, puis ajustez-les si nécessaire."}
+              </p>
+              <div className="space-y-2">
                 <div className="relative w-full rounded-lg overflow-hidden border border-border">
                   <canvas
                     ref={overlayCanvasRef}
