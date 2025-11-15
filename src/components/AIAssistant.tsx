@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { X, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeEdgeFunction } from "@/integrations/supabase/client";
 
 interface AIAssistantProps {
   onClose: () => void;
@@ -34,7 +34,7 @@ export const AIAssistant = ({ onClose }: AIAssistantProps) => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke("drawing-coach", {
+      const { data, error } = await invokeEdgeFunction("drawing-coach", {
         body: { messages: [...messages, userMessage] },
       });
 

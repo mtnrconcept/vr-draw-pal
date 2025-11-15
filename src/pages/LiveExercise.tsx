@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Sparkles, Loader2, CheckCircle2, MessageCircle } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeEdgeFunction } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { DrawingLoadingAnimation } from "@/components/DrawingLoadingAnimation";
 
@@ -72,7 +72,7 @@ const LiveExercise = () => {
   const generateExercise = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-exercise", {
+      const { data, error } = await invokeEdgeFunction("generate-exercise", {
         body: { level, focus },
       });
 
@@ -116,8 +116,8 @@ const LiveExercise = () => {
 
     setIsAnalyzing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("analyze-drawing", {
-        body: { 
+      const { data, error } = await invokeEdgeFunction("analyze-drawing", {
+        body: {
           exerciseTitle: exercise.title,
           userProgress: `Étape ${currentStep + 1}/${exercise.steps.length}`,
           specificQuestion: specificQuestion || question,
