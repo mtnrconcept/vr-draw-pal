@@ -44,6 +44,12 @@ export class OpenCVTracker {
   private roiMask: any | null = null; // Mat binaire de la zone de la feuille
   private initialized = false;
   private lastHomography: number[] | null = null; // pour lisser l’homographie
+  private anchorCount = 0;
+  private anchorIndices: number[] = [];
+  private lastAcceptedAnchorPositions: { x: number; y: number }[] = [];
+  private anchorBaselineDistance = 0;
+  private readonly anchorRigidityTolerance = 0.25; // 25% d'écart pairwise toléré
+  private anchorOutlierPixelThreshold = 35;
 
   constructor() {
     this.cv = (window as any).cv;
@@ -101,6 +107,14 @@ export class OpenCVTracker {
       this.prevGray = null;
     }
     this.lastHomography = null;
+    this.anchorCount = Math.min(4, points.length);
+    this.anchorIndices = Array.from({ length: this.anchorCount }, (_, idx) => idx);
+    this.lastAcceptedAnchorPositions = this.anchorIndices.map(idx => ({
+      x: points[idx].x,
+      y: points[idx].y
+    }));
+    this.anchorBaselineDistance = this.computeAverageDistance(this.lastAcceptedAnchorPositions);
+    this.anchorOutlierPixelThreshold = Math.max(15, this.anchorBaselineDistance * 0.3);
 
     const minDim = Math.min(gray.cols, gray.rows);
     const baseTemplateSize = Math.max(24, Math.min(120, Math.round(minDim * 0.08)));
@@ -198,6 +212,43 @@ export class OpenCVTracker {
     return ptr[0] > 0;
   }
 
+  private computeAverageDistance(points: { x: number; y: number }[]): number {
+    if (points.length < 2) {
+      return 0;
+    }
+    let total = 0;
+    let count = 0;
+    for (let i = 0; i < points.length; i += 1) {
+      for (let j = i + 1; j < points.length; j += 1) {
+        const dx = points[i].x - points[j].x;
+        const dy = points[i].y - points[j].y;
+        total += Math.hypot(dx, dy);
+        count += 1;
+      }
+    }
+    return count > 0 ? total / count : 0;
+  }
+
+  private applyHomographyToPoint(
+    homography: number[] | null,
+    x: number,
+    y: number
+  ): { x: number; y: number } | null {
+    if (!homography || homography.length !== 9) {
+      return null;
+    }
+    const denom = homography[6] * x + homography[7] * y + homography[8];
+    if (Math.abs(denom) < 1e-6) {
+      return null;
+    }
+    const newX = (homography[0] * x + homography[1] * y + homography[2]) / denom;
+    const newY = (homography[3] * x + homography[4] * y + homography[5]) / denom;
+    if (!Number.isFinite(newX) || !Number.isFinite(newY)) {
+      return null;
+    }
+    return { x: newX, y: newY };
+  }
+
   private matchTemplateAtIndex(
     gray: any,
     idx: number,
@@ -293,10 +344,18 @@ export class OpenCVTracker {
     const gray = new this.cv.Mat();
     this.cv.cvtColor(frame, gray, this.cv.COLOR_RGBA2GRAY);
 
-    const srcPoints: number[] = [];
-    const dstPoints: number[] = [];
-    let matchedPoints = 0;
-    let stabilitySum = 0;
+    const correspondences: {
+      idx: number;
+      refX: number;
+      refY: number;
+      dstX: number;
+      dstY: number;
+      score: number;
+    }[] = [];
+    const correspondenceMap = new Map<
+      number,
+      { idx: number; refX: number; refY: number; dstX: number; dstY: number; score: number }
+    >();
     const successfulIdx = new Set<number>();
 
     const prevGray = this.prevGray;
@@ -351,10 +410,16 @@ export class OpenCVTracker {
           ) {
             this.lastPositions[idx] = { x, y };
             const stabilityScore = Math.max(0, Math.min(1, 1 - (errData[idx] || 0) / 50));
-            srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
-            dstPoints.push(x, y);
-            matchedPoints += 1;
-            stabilitySum += stabilityScore;
+            const correspondence = {
+              idx,
+              refX: this.referencePoints[idx].x,
+              refY: this.referencePoints[idx].y,
+              dstX: x,
+              dstY: y,
+              score: stabilityScore
+            };
+            correspondences.push(correspondence);
+            correspondenceMap.set(idx, correspondence);
             successfulIdx.add(idx);
           }
         }
@@ -375,16 +440,22 @@ export class OpenCVTracker {
       const match = this.matchTemplateAtIndex(gray, idx, prevGray ? 1 : 1.5);
       if (match) {
         this.lastPositions[idx] = { x: match.x, y: match.y };
-        srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
-        dstPoints.push(match.x, match.y);
-        matchedPoints += 1;
-        stabilitySum += match.score;
+        const correspondence = {
+          idx,
+          refX: this.referencePoints[idx].x,
+          refY: this.referencePoints[idx].y,
+          dstX: match.x,
+          dstY: match.y,
+          score: match.score
+        };
+        correspondences.push(correspondence);
+        correspondenceMap.set(idx, correspondence);
         successfulIdx.add(idx);
       }
     }
 
     // Dernier fallback avec searchArea plus large
-    if (matchedPoints < 4) {
+    if (correspondences.length < 4) {
       for (let idx = 0; idx < this.templates.length; idx += 1) {
         if (successfulIdx.has(idx)) {
           continue;
@@ -393,10 +464,16 @@ export class OpenCVTracker {
         const match = this.matchTemplateAtIndex(gray, idx, 2.5);
         if (match) {
           this.lastPositions[idx] = { x: match.x, y: match.y };
-          srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
-          dstPoints.push(match.x, match.y);
-          matchedPoints += 1;
-          stabilitySum += match.score;
+          const correspondence = {
+            idx,
+            refX: this.referencePoints[idx].x,
+            refY: this.referencePoints[idx].y,
+            dstX: match.x,
+            dstY: match.y,
+            score: match.score
+          };
+          correspondences.push(correspondence);
+          correspondenceMap.set(idx, correspondence);
           successfulIdx.add(idx);
         }
       }
@@ -404,31 +481,145 @@ export class OpenCVTracker {
 
     let homography: number[] | null = null;
     let stability = 0;
+    let matchedPoints = 0;
+    let computedNewHomography = false;
 
-    if (matchedPoints >= 4) {
-      const srcMat = this.cv.matFromArray(matchedPoints, 1, this.cv.CV_32FC2, srcPoints);
-      const dstMat = this.cv.matFromArray(matchedPoints, 1, this.cv.CV_32FC2, dstPoints);
+    const anchorOutliers = new Set<number>();
+    const observationMap = new Map<number, { x: number; y: number }>();
+
+    for (const idx of this.anchorIndices) {
+      const correspondence = correspondenceMap.get(idx);
+      if (correspondence) {
+        observationMap.set(idx, { x: correspondence.dstX, y: correspondence.dstY });
+      }
+    }
+
+    if (this.lastHomography) {
+      for (const [idx, obs] of observationMap.entries()) {
+        const predicted = this.applyHomographyToPoint(
+          this.lastHomography,
+          this.referencePoints[idx].x,
+          this.referencePoints[idx].y
+        );
+        if (predicted) {
+          const dist = Math.hypot(predicted.x - obs.x, predicted.y - obs.y);
+          if (dist > this.anchorOutlierPixelThreshold) {
+            anchorOutliers.add(idx);
+          }
+        }
+      }
+    }
+
+    if (
+      observationMap.size >= 3 &&
+      this.lastAcceptedAnchorPositions.length === this.anchorCount &&
+      this.anchorCount >= 3
+    ) {
+      const inconsistentCounts = new Map<number, number>();
+      const observedIndices = Array.from(observationMap.keys());
+      for (let i = 0; i < observedIndices.length; i += 1) {
+        for (let j = i + 1; j < observedIndices.length; j += 1) {
+          const idxA = observedIndices[i];
+          const idxB = observedIndices[j];
+          const prevA = this.lastAcceptedAnchorPositions[idxA];
+          const prevB = this.lastAcceptedAnchorPositions[idxB];
+          if (!prevA || !prevB) {
+            continue;
+          }
+          const prevDist = Math.hypot(prevA.x - prevB.x, prevA.y - prevB.y);
+          if (prevDist < 1e-3) {
+            continue;
+          }
+          const currA = observationMap.get(idxA)!;
+          const currB = observationMap.get(idxB)!;
+          const currDist = Math.hypot(currA.x - currB.x, currA.y - currB.y);
+          const deviation = Math.abs(currDist - prevDist) / prevDist;
+          if (deviation > this.anchorRigidityTolerance) {
+            inconsistentCounts.set(idxA, (inconsistentCounts.get(idxA) || 0) + 1);
+            inconsistentCounts.set(idxB, (inconsistentCounts.get(idxB) || 0) + 1);
+          }
+        }
+      }
+
+      const threshold = Math.max(1, Math.ceil(observationMap.size / 2));
+      for (const [idx, count] of inconsistentCounts.entries()) {
+        if (count >= threshold) {
+          anchorOutliers.add(idx);
+        }
+      }
+    }
+
+    const filteredCorrespondences = correspondences.filter(
+      correspondence => !anchorOutliers.has(correspondence.idx)
+    );
+
+    matchedPoints = filteredCorrespondences.length;
+    let inlierCorrespondences = filteredCorrespondences;
+
+    if (filteredCorrespondences.length >= 4) {
+      const srcPoints: number[] = [];
+      const dstPoints: number[] = [];
+      filteredCorrespondences.forEach(correspondence => {
+        srcPoints.push(correspondence.refX, correspondence.refY);
+        dstPoints.push(correspondence.dstX, correspondence.dstY);
+      });
+
+      const srcMat = this.cv.matFromArray(
+        filteredCorrespondences.length,
+        1,
+        this.cv.CV_32FC2,
+        srcPoints
+      );
+      const dstMat = this.cv.matFromArray(
+        filteredCorrespondences.length,
+        1,
+        this.cv.CV_32FC2,
+        dstPoints
+      );
+      const mask = new this.cv.Mat();
 
       try {
-        const H = this.cv.findHomography(srcMat, dstMat, this.cv.RANSAC, 5.0);
+        const H = this.cv.findHomography(
+          srcMat,
+          dstMat,
+          this.cv.RANSAC,
+          5.0,
+          mask
+        );
         if (!H.empty()) {
-          const currentH: number[] = [];
-          for (let i = 0; i < 9; i++) {
-            currentH.push(H.doubleAt(Math.floor(i / 3), i % 3));
-          }
+          const maskData = mask.data;
+          inlierCorrespondences = filteredCorrespondences.filter((_, idx) => maskData[idx] === 1);
+          matchedPoints = inlierCorrespondences.length;
 
-          // Lissage exponentiel de l’homographie → tracking plus “fluide”
-          const alpha = 0.85;
-          if (this.lastHomography) {
-            homography = currentH.map(
-              (v, i) => alpha * v + (1 - alpha) * this.lastHomography![i]
+          filteredCorrespondences.forEach((correspondence, idx) => {
+            if (maskData[idx] === 0 && this.anchorIndices.includes(correspondence.idx)) {
+              anchorOutliers.add(correspondence.idx);
+            }
+          });
+
+          if (matchedPoints >= 4) {
+            const currentH: number[] = [];
+            for (let i = 0; i < 9; i += 1) {
+              currentH.push(H.doubleAt(Math.floor(i / 3), i % 3));
+            }
+
+            const alpha = 0.85;
+            if (this.lastHomography) {
+              homography = currentH.map(
+                (v, i) => alpha * v + (1 - alpha) * this.lastHomography![i]
+              );
+            } else {
+              homography = currentH;
+            }
+            this.lastHomography = homography.slice();
+            computedNewHomography = true;
+
+            const inlierStabilitySum = inlierCorrespondences.reduce(
+              (sum, correspondence) => sum + correspondence.score,
+              0
             );
-          } else {
-            homography = currentH;
+            stability = Math.min(100, (inlierStabilitySum / matchedPoints) * 100);
           }
-          this.lastHomography = homography.slice();
-
-          stability = Math.min(100, (stabilitySum / matchedPoints) * 100);
         }
         H.delete();
       } catch (error) {
@@ -437,6 +628,45 @@ export class OpenCVTracker {
 
       srcMat.delete();
       dstMat.delete();
+      mask.delete();
+    }
+
+    if (!homography && this.lastHomography) {
+      homography = this.lastHomography.slice();
+    }
+
+    const inlierIndexSet = new Set<number>(inlierCorrespondences.map(correspondence => correspondence.idx));
+    const finalAnchorPositions: { x: number; y: number }[] = [];
+    for (const idx of this.anchorIndices) {
+      let finalPos: { x: number; y: number } | null = null;
+      if (inlierIndexSet.has(idx) && !anchorOutliers.has(idx)) {
+        const correspondence = correspondenceMap.get(idx);
+        if (correspondence) {
+          finalPos = { x: correspondence.dstX, y: correspondence.dstY };
+        }
+      }
+
+      if (!finalPos) {
+        const predicted = this.applyHomographyToPoint(
+          homography,
+          this.referencePoints[idx].x,
+          this.referencePoints[idx].y
+        );
+        if (predicted) {
+          finalPos = predicted;
+        } else if (this.lastAcceptedAnchorPositions[idx]) {
+          finalPos = { ...this.lastAcceptedAnchorPositions[idx] };
+        } else {
+          finalPos = { x: this.referencePoints[idx].x, y: this.referencePoints[idx].y };
+        }
+      }
+
+      this.lastPositions[idx] = finalPos;
+      finalAnchorPositions[idx] = finalPos;
+    }
+
+    if (computedNewHomography) {
+      this.lastAcceptedAnchorPositions = finalAnchorPositions.map(pos => ({ ...pos }));
     }
 
     if (this.prevGray) {
@@ -473,6 +703,10 @@ export class OpenCVTracker {
       this.roiMask = null;
     }
     this.lastHomography = null;
+    this.anchorCount = 0;
+    this.anchorIndices = [];
+    this.lastAcceptedAnchorPositions = [];
+    this.anchorBaselineDistance = 0;
     this.initialized = false;
   }
 
