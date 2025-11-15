@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus, Settings } from "lucide-react";
@@ -14,11 +14,27 @@ import { useTrackingPoints, TrackingConfiguration } from "@/hooks/useTrackingPoi
 
 interface PointTrackingManagerProps {
   onConfigurationReady: (config: TrackingConfiguration) => void;
+  externalCalibrationTrigger?: number;
 }
 
-export default function PointTrackingManager({ onConfigurationReady }: PointTrackingManagerProps) {
+export default function PointTrackingManager({
+  onConfigurationReady,
+  externalCalibrationTrigger,
+}: PointTrackingManagerProps) {
   const [isCalibrating, setIsCalibrating] = useState(false);
   const { configurations, currentConfig, saveConfiguration, loadConfiguration } = useTrackingPoints();
+  const externalTriggerRef = useRef(externalCalibrationTrigger);
+
+  useEffect(() => {
+    if (
+      externalCalibrationTrigger !== undefined &&
+      externalCalibrationTrigger !== null &&
+      externalCalibrationTrigger !== externalTriggerRef.current
+    ) {
+      externalTriggerRef.current = externalCalibrationTrigger;
+      setIsCalibrating(true);
+    }
+  }, [externalCalibrationTrigger]);
 
   const handleCalibrationComplete = (result: TrackingCalibrationResult) => {
     const configName = result.name || `Config ${configurations.length + 1}`;
