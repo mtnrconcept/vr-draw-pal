@@ -14,7 +14,7 @@ import { Eye, EyeOff } from "lucide-react";
 // Simple toast replacement
 const toast = {
   success: (msg: string) => console.log("✓", msg),
-  error: (msg: string) => console.error("✗", msg)
+  error: (msg: string) => console.error("✗", msg),
 };
 
 interface ARAnchorsModeProps {
@@ -22,58 +22,86 @@ interface ARAnchorsModeProps {
   ghostMentorEnabled?: boolean;
 }
 
-// Classe pour lisser les homographies et éviter les sauts
+// --- LISSAGE D'HOMOGRAPHIE HAUTE PRÉCISION ------------------------------
+
+/**
+ * Lissage exponentiel de la matrice d'homographie.
+ * - plus la stabilité est bonne, plus on lisse fort (image très “collée”)
+ * - en cas de mouvements rapides / stabilité faible, on répond plus vite.
+ */
 class HomographySmoothing {
-  private history: number[][] = [];
-  private maxHistory: number;
-  
-  constructor(windowSize: number = 3) {
-    this.maxHistory = windowSize;
-  }
-  
-  smooth(homography: number[]): number[] {
-    this.history.push([...homography]);
-    if (this.history.length > this.maxHistory) {
-      this.history.shift();
+  private last: number[] | null = null;
+
+  // poids de base
+  private readonly alphaSlow = 0.15; // scène stable → image quasi imprimée
+  private readonly alphaMedium = 0.35;
+  private readonly alphaFast = 0.65; // mouvements rapides → plus réactif
+
+  smooth(h: number[], stabilityRatio: number): number[] {
+    if (!this.last) {
+      this.last = [...h];
+      return [...h];
     }
-    
-    // Moyenne pondérée (plus de poids sur les valeurs récentes)
-    const smoothed = new Array(9).fill(0);
-    let totalWeight = 0;
-    
-    this.history.forEach((h, idx) => {
-      const weight = idx + 1; // Poids croissant
-      totalWeight += weight;
-      h.forEach((val, i) => {
-        smoothed[i] += val * weight;
-      });
-    });
-    
-    return smoothed.map(v => v / totalWeight);
+
+    // stabilitéRatio ~ [0,1]
+    let alpha: number;
+    if (stabilityRatio >= 0.85) {
+      alpha = this.alphaSlow;
+    } else if (stabilityRatio >= 0.6) {
+      alpha = this.alphaMedium;
+    } else {
+      alpha = this.alphaFast;
+    }
+
+    const out = new Array(9);
+    for (let i = 0; i < 9; i++) {
+      out[i] = alpha * h[i] + (1 - alpha) * this.last[i];
+    }
+    this.last = out;
+    return out;
   }
-  
+
   reset() {
-    this.history = [];
+    this.last = null;
   }
 }
+
+// Ressources OpenCV réutilisables pour éviter les allocations à chaque frame
+type WarpResources = {
+  overlayMat: any | null; // Mat de l'image overlay
+  warpedMat: any | null; // Mat warpée à la taille du canvas
+  warpedCanvas: HTMLCanvasElement | null; // canvas tampon pour cv.imshow
+};
 
 export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const trackerRef = useRef<OpenCVTracker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const smoothingRef = useRef<HomographySmoothing>(new HomographySmoothing(5));
+  const smoothingRef = useRef<HomographySmoothing>(
+    new HomographySmoothing()
+  );
+  const warpResourcesRef = useRef<WarpResources>({
+    overlayMat: null,
+    warpedMat: null,
+    warpedCanvas: null,
+  });
+  const lastGoodHomographyRef = useRef<number[] | null>(null);
 
   const [streamActive, setStreamActive] = useState(false);
   const [trackingActive, setTrackingActive] = useState(false);
   const [trackingStability, setTrackingStability] = useState(0);
   const [matchedPoints, setMatchedPoints] = useState(0);
   const [configuredPoints, setConfiguredPoints] = useState<TrackingPoint[]>([]);
-  const [trackingReferenceImageUrl, setTrackingReferenceImageUrl] = useState<string | null>(null);
+  const [trackingReferenceImageUrl, setTrackingReferenceImageUrl] =
+    useState<string | null>(null);
   const [overlayImageUrl, setOverlayImageUrl] = useState<string | null>(null);
-  const [overlayToReferenceHomography, setOverlayToReferenceHomography] = useState<number[] | null>(null);
+  const [overlayToReferenceHomography, setOverlayToReferenceHomography] =
+    useState<number[] | null>(null);
   const [isInitializingTracking, setIsInitializingTracking] = useState(false);
-  const [overlayImage, setOverlayImage] = useState<HTMLImageElement | null>(null);
+  const [overlayImage, setOverlayImage] = useState<HTMLImageElement | null>(
+    null
+  );
   const [showDebugPoints, setShowDebugPoints] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState([70]);
 
@@ -86,7 +114,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
         toast.error("OpenCV non disponible. Rechargez la page.");
       }
     };
-    
+
     if (document.readyState === "complete") {
       checkOpenCV();
     } else {
@@ -98,7 +126,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: 1280, height: 720 }
+        video: { facingMode: "environment", width: 1280, height: 720 },
       });
 
       if (videoRef.current) {
@@ -124,16 +152,26 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
       a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
       a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
-      a[6] * b[2] + a[7] * b[5] + a[8] * b[8]
+      a[6] * b[2] + a[7] * b[5] + a[8] * b[8],
     ];
   };
 
+  // Nettoyage global
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
       trackerRef.current?.dispose();
+
+      const cv = (window as any).cv;
+      if (cv) {
+        warpResourcesRef.current.overlayMat?.delete?.();
+        warpResourcesRef.current.warpedMat?.delete?.();
+      }
+      warpResourcesRef.current.overlayMat = null;
+      warpResourcesRef.current.warpedMat = null;
+      warpResourcesRef.current.warpedCanvas = null;
     };
   }, []);
 
@@ -153,7 +191,8 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
         const imageData = ctx.getImageData(0, 0, image.width, image.height);
         resolve(imageData);
       };
-      image.onerror = () => reject(new Error("Impossible de charger l'image de référence"));
+      image.onerror = () =>
+        reject(new Error("Impossible de charger l'image de référence"));
       image.src = dataUrl;
     });
   };
@@ -185,7 +224,9 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
     try {
       setIsInitializingTracking(true);
-      const referenceImageData = await loadReferenceImageData(trackingReferenceImageUrl);
+      const referenceImageData = await loadReferenceImageData(
+        trackingReferenceImageUrl
+      );
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -199,15 +240,21 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       trackerRef.current?.dispose();
       trackerRef.current = new OpenCVTracker();
       smoothingRef.current.reset();
+      lastGoodHomographyRef.current = null;
 
-      trackerRef.current.initializeReferencePoints(referenceImageData, configuredPoints);
+      trackerRef.current.initializeReferencePoints(
+        referenceImageData,
+        configuredPoints
+      );
       setMatchedPoints(0);
       setTrackingStability(0);
       setTrackingActive(true);
       toast.success("Tracking activé");
     } catch (error) {
       console.error(error);
-      toast.error((error as Error).message || "Impossible d'initialiser le tracking");
+      toast.error(
+        (error as Error).message || "Impossible d'initialiser le tracking"
+      );
       trackerRef.current?.dispose();
       trackerRef.current = null;
     } finally {
@@ -220,8 +267,17 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     trackerRef.current?.dispose();
     trackerRef.current = null;
     smoothingRef.current.reset();
-    
-    // Nettoyer le canvas
+    lastGoodHomographyRef.current = null;
+
+    const cv = (window as any).cv;
+    if (cv) {
+      warpResourcesRef.current.overlayMat?.delete?.();
+      warpResourcesRef.current.warpedMat?.delete?.();
+    }
+    warpResourcesRef.current.overlayMat = null;
+    warpResourcesRef.current.warpedMat = null;
+    warpResourcesRef.current.warpedCanvas = null;
+
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext("2d");
@@ -229,12 +285,23 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
     }
-    
+
     toast.success("Tracking arrêté");
   };
 
+  // BOUCLE DE TRACKING & RENDU
   useEffect(() => {
-    if (!trackingActive || !trackerRef.current || !streamActive || !overlayImage) return;
+    if (
+      !trackingActive ||
+      !trackerRef.current ||
+      !streamActive ||
+      !overlayImage ||
+      !overlayToReferenceHomography
+    )
+      return;
+
+    const cv = (window as any).cv;
+    if (!cv) return;
 
     let lastTime = performance.now();
     const targetFPS = 30;
@@ -243,113 +310,174 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     const trackLoop = (currentTime: number) => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const cv = (window as any).cv;
-
-      if (!video || !canvas || !cv) return;
+      if (!video || !canvas) return;
 
       const ctx = canvas.getContext("2d", { alpha: false });
       if (!ctx) return;
 
       const elapsed = currentTime - lastTime;
-      
+
       if (elapsed >= frameInterval) {
         lastTime = currentTime - (elapsed % frameInterval);
 
-        // ÉTAPE 1: Effacer COMPLÈTEMENT le canvas (avec fillRect pour forcer)
+        // 1) Effacer le canvas et dessiner la vidéo
         ctx.fillStyle = "#000000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // ÉTAPE 2: Dessiner la vidéo en arrière-plan
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-        // ÉTAPE 3: Capturer frame pour tracking
+        // 2) Récupérer la frame pour le tracker
         const frameImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const result = trackerRef.current!.trackFrame(frameImageData);
 
         setMatchedPoints(result.matchedPoints);
         setTrackingStability(result.stability);
 
-        // ÉTAPE 4: Si tracking OK, projeter l'overlay
-        if (result.isTracking && result.homography && overlayToReferenceHomography) {
-          try {
-            // Calculer homographie finale
-            const rawFinalH = multiplyHomographies(result.homography, overlayToReferenceHomography);
-            
-            // Appliquer le lissage pour éviter les sauts
-            const finalH = smoothingRef.current.smooth(rawFinalH);
+        const minPoints = Math.max(
+          4,
+          Math.floor(configuredPoints.length * 0.6)
+        );
+        const stabilityRatio = Math.max(
+          0,
+          Math.min(1, result.stability / 100)
+        );
 
-            // Créer matrice OpenCV
-            const HMat = cv.matFromArray(3, 3, cv.CV_64F, finalH);
+        const trackingConfident =
+          result.isTracking &&
+          result.homography &&
+          result.matchedPoints >= minPoints &&
+          result.stability >= 35;
 
-            // Convertir overlay en Mat
+        // Fonction utilitaire de rendu de l'overlay à partir d'une homographie
+        const renderOverlayWithHomography = (finalH: number[]) => {
+          // Préparer/mettre à jour les ressources OpenCV
+          let { overlayMat, warpedMat, warpedCanvas } =
+            warpResourcesRef.current;
+
+          if (!overlayMat) {
+            // Création unique du Mat overlay à partir de l'image
             const overlayCanvas = document.createElement("canvas");
             overlayCanvas.width = overlayImage.width;
             overlayCanvas.height = overlayImage.height;
-            const overlayCtx = overlayCanvas.getContext("2d", { alpha: true })!;
+            const overlayCtx = overlayCanvas.getContext("2d", {
+              alpha: true,
+            })!;
             overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             overlayCtx.drawImage(overlayImage, 0, 0);
-            const overlayImageData = overlayCtx.getImageData(0, 0, overlayImage.width, overlayImage.height);
-            const overlayMat = cv.matFromImageData(overlayImageData);
-
-            // Warper l'overlay
-            const warpedMat = new cv.Mat();
-            cv.warpPerspective(
-              overlayMat, 
-              warpedMat, 
-              HMat, 
-              new cv.Size(canvas.width, canvas.height),
-              cv.INTER_LINEAR,
-              cv.BORDER_CONSTANT,
-              new cv.Scalar(0, 0, 0, 0)
+            const overlayImageData = overlayCtx.getImageData(
+              0,
+              0,
+              overlayImage.width,
+              overlayImage.height
             );
+            overlayMat = cv.matFromImageData(overlayImageData);
+            warpResourcesRef.current.overlayMat = overlayMat;
+          }
 
-            // Convertir en canvas temporaire
-            const warpedCanvas = document.createElement("canvas");
+          // Mat warpé à la taille du canvas
+          if (
+            !warpedMat ||
+            warpedMat.cols !== canvas.width ||
+            warpedMat.rows !== canvas.height
+          ) {
+            if (warpedMat) warpedMat.delete();
+            warpedMat = new cv.Mat(
+              canvas.height,
+              canvas.width,
+              overlayMat.type()
+            );
+            warpResourcesRef.current.warpedMat = warpedMat;
+          }
+
+          // Canvas tampon pour imshow
+          if (
+            !warpedCanvas ||
+            warpedCanvas.width !== canvas.width ||
+            warpedCanvas.height !== canvas.height
+          ) {
+            warpedCanvas = document.createElement("canvas");
             warpedCanvas.width = canvas.width;
             warpedCanvas.height = canvas.height;
-            const warpedCtx = warpedCanvas.getContext("2d", { alpha: true })!;
-            cv.imshow(warpedCanvas, warpedMat);
+            warpResourcesRef.current.warpedCanvas = warpedCanvas;
+          }
 
-            // IMPORTANT: Sauvegarder l'état, appliquer opacité, dessiner, restaurer
-            ctx.save();
-            ctx.globalAlpha = overlayOpacity[0] / 100;
-            ctx.globalCompositeOperation = "source-over";
-            ctx.drawImage(warpedCanvas, 0, 0);
-            ctx.restore();
+          // Matrice H
+          const HMat = cv.matFromArray(3, 3, cv.CV_64F, finalH);
 
-            // Dessiner points de debug SEULEMENT si activé
-            if (showDebugPoints) {
-              configuredPoints.forEach((refPt, idx) => {
-                const h = finalH;
-                const w = h[6] * refPt.x + h[7] * refPt.y + h[8];
-                if (Math.abs(w) < 0.001) return;
-                
-                const x = (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w;
-                const y = (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w;
+          // Warp
+          cv.warpPerspective(
+            overlayMat,
+            warpedMat,
+            HMat,
+            new cv.Size(canvas.width, canvas.height),
+            cv.INTER_LINEAR,
+            cv.BORDER_CONSTANT,
+            new cv.Scalar(0, 0, 0, 0)
+          );
 
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, 2 * Math.PI);
-                ctx.fillStyle = "rgba(34, 197, 94, 0.8)";
-                ctx.fill();
-                ctx.strokeStyle = "#22c55e";
-                ctx.lineWidth = 2;
-                ctx.stroke();
+          const warpedCtx = warpedCanvas.getContext("2d", {
+            alpha: true,
+          })!;
+          cv.imshow(warpedCanvas, warpedMat);
 
-                ctx.fillStyle = "white";
-                ctx.font = "bold 12px sans-serif";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "middle";
-                ctx.fillText((idx + 1).toString(), x, y);
-              });
-            }
+          ctx.save();
+          ctx.globalAlpha = overlayOpacity[0] / 100;
+          ctx.globalCompositeOperation = "source-over";
+          ctx.drawImage(warpedCanvas, 0, 0);
+          ctx.restore();
 
-            // Cleanup
-            HMat.delete();
-            overlayMat.delete();
-            warpedMat.delete();
+          // Points de debug éventuels
+          if (showDebugPoints) {
+            configuredPoints.forEach((refPt, idx) => {
+              const h = finalH;
+              const w =
+                h[6] * refPt.x + h[7] * refPt.y + h[8];
+              if (Math.abs(w) < 0.001) return;
+
+              const x = (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w;
+              const y = (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w;
+
+              ctx.beginPath();
+              ctx.arc(x, y, 8, 0, 2 * Math.PI);
+              ctx.fillStyle = "rgba(34, 197, 94, 0.8)";
+              ctx.fill();
+              ctx.strokeStyle = "#22c55e";
+              ctx.lineWidth = 2;
+              ctx.stroke();
+
+              ctx.fillStyle = "white";
+              ctx.font = "bold 12px sans-serif";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText((idx + 1).toString(), x, y);
+            });
+          }
+
+          HMat.delete();
+        };
+
+        // 3) Tracking normal → lissage + mémorisation dernière homographie fiable
+        if (trackingConfident && result.homography) {
+          try {
+            const rawFinalH = multiplyHomographies(
+              result.homography,
+              overlayToReferenceHomography
+            );
+            const finalH = smoothingRef.current.smooth(
+              rawFinalH,
+              stabilityRatio
+            );
+            lastGoodHomographyRef.current = finalH;
+            renderOverlayWithHomography(finalH);
           } catch (error) {
             console.error("Warp failed:", error);
           }
+        } else if (lastGoodHomographyRef.current) {
+          // 4) Tracking incertain → on fige sur la dernière homographie propre
+          const frozenH = smoothingRef.current.smooth(
+            lastGoodHomographyRef.current,
+            1
+          );
+          renderOverlayWithHomography(frozenH);
         }
       }
 
@@ -363,9 +491,20 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [trackingActive, streamActive, overlayImage, configuredPoints, overlayToReferenceHomography, showDebugPoints, overlayOpacity]);
+  }, [
+    trackingActive,
+    streamActive,
+    overlayImage,
+    configuredPoints,
+    overlayToReferenceHomography,
+    showDebugPoints,
+    overlayOpacity,
+  ]);
 
-  const computeOverlayToReference = (overlayPoints: TrackingPoint[], referencePoints: TrackingPoint[]) => {
+  const computeOverlayToReference = (
+    overlayPoints: TrackingPoint[],
+    referencePoints: TrackingPoint[]
+  ) => {
     if (!(window as any).cv) {
       toast.error("OpenCV non disponible pour calculer l'alignement");
       return null;
@@ -381,8 +520,18 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     let transform: any | null = null;
 
     try {
-      src = cv.matFromArray(overlayPoints.length, 1, cv.CV_32FC2, overlayPoints.flatMap(p => [p.x, p.y]));
-      dst = cv.matFromArray(referencePoints.length, 1, cv.CV_32FC2, referencePoints.flatMap(p => [p.x, p.y]));
+      src = cv.matFromArray(
+        overlayPoints.length,
+        1,
+        cv.CV_32FC2,
+        overlayPoints.flatMap((p) => [p.x, p.y])
+      );
+      dst = cv.matFromArray(
+        referencePoints.length,
+        1,
+        cv.CV_32FC2,
+        referencePoints.flatMap((p) => [p.x, p.y])
+      );
       transform = cv.getPerspectiveTransform(src, dst);
 
       const data: number[] = [];
@@ -409,7 +558,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     setTrackingReferenceImageUrl(config.referenceImage);
     setConfiguredPoints(config.trackingPoints);
     setOverlayImageUrl(config.overlayImage);
-    
+
     // Charger l'image overlay
     const img = new Image();
     img.crossOrigin = "anonymous";
@@ -420,12 +569,29 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     });
     setOverlayImage(img);
 
-    const transform = computeOverlayToReference(config.overlayAnchors, config.trackingPoints);
+    const transform = computeOverlayToReference(
+      config.overlayAnchors,
+      config.trackingPoints
+    );
     setOverlayToReferenceHomography(transform);
     setMatchedPoints(0);
     setTrackingStability(0);
     smoothingRef.current.reset();
-    toast.success(`Configuration prête avec ${config.trackingPoints.length} points`);
+    lastGoodHomographyRef.current = null;
+
+    // Reset des ressources OpenCV liées à l’overlay
+    const cv = (window as any).cv;
+    if (cv) {
+      warpResourcesRef.current.overlayMat?.delete?.();
+      warpResourcesRef.current.warpedMat?.delete?.();
+    }
+    warpResourcesRef.current.overlayMat = null;
+    warpResourcesRef.current.warpedMat = null;
+    warpResourcesRef.current.warpedCanvas = null;
+
+    toast.success(
+      `Configuration prête avec ${config.trackingPoints.length} points`
+    );
   };
 
   return (
@@ -438,8 +604,9 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       <div className="lg:col-span-3 space-y-4">
         <Alert>
           <AlertDescription>
-            Mode AR par Points : Configurez vos points de tracking (minimum 4, recommandé 6-8 pour plus de stabilité), 
-            puis activez le tracking pour projeter votre image.
+            Mode AR par Points : configurez vos points de tracking (minimum 4,
+            recommandé 6–8 pour une feuille quasi “imprimée”), puis activez le
+            tracking pour projeter votre image.
           </AlertDescription>
         </Alert>
 
@@ -459,14 +626,18 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
               <p className="text-xs font-semibold">Tracking actif</p>
               <div className="flex items-center gap-2">
                 <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-primary transition-all"
                     style={{ width: `${trackingStability}%` }}
                   />
                 </div>
-                <span className="text-xs">{Math.round(trackingStability)}%</span>
+                <span className="text-xs">
+                  {Math.round(trackingStability)}%
+                </span>
               </div>
-              <p className="text-xs">Points: {matchedPoints}/{configuredPoints.length}</p>
+              <p className="text-xs">
+                Points: {matchedPoints}/{configuredPoints.length}
+              </p>
             </div>
           )}
         </div>
@@ -478,8 +649,8 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
                 Activer la caméra
               </Button>
             ) : !trackingActive ? (
-              <Button 
-                className="flex-1" 
+              <Button
+                className="flex-1"
                 onClick={startTracking}
                 disabled={
                   configuredPoints.length < 4 ||
@@ -487,10 +658,12 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
                   !trackingReferenceImageUrl
                 }
               >
-                {isInitializingTracking ? "Initialisation..." : "Démarrer le tracking"}
+                {isInitializingTracking
+                  ? "Initialisation..."
+                  : "Démarrer le tracking"}
               </Button>
             ) : (
-              <Button 
+              <Button
                 className="flex-1"
                 variant="destructive"
                 onClick={stopTracking}
@@ -505,7 +678,9 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
               <Card className="p-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="opacity" className="text-sm">Opacité: {overlayOpacity[0]}%</Label>
+                    <Label htmlFor="opacity" className="text-sm">
+                      Opacité: {overlayOpacity[0]}%
+                    </Label>
                   </div>
                   <Slider
                     id="opacity"
@@ -520,7 +695,9 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
               <Card className="p-3">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="debug-points" className="text-sm">Points de debug</Label>
+                  <Label htmlFor="debug-points" className="text-sm">
+                    Points de debug
+                  </Label>
                   <div className="flex items-center gap-2">
                     {showDebugPoints ? (
                       <Eye className="w-4 h-4 text-primary" />
@@ -541,9 +718,13 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
         {trackingActive && (
           <Card className="p-3 bg-primary/10 border-primary">
-            <p className="font-semibold text-sm">Tracking 2D actif avec lissage</p>
+            <p className="font-semibold text-sm">
+              Tracking 2D stabilisé haute précision
+            </p>
             <p className="text-xs text-muted-foreground">
-              L'image suit les mouvements de la feuille de manière fluide
+              L&apos;image est verrouillée sur la feuille avec lissage
+              adaptatif et maintien de la dernière pose fiable pour une
+              sensation quasi “imprimée”.
             </p>
           </Card>
         )}
