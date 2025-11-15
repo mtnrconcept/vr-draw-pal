@@ -3,52 +3,58 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-
 import * as THREE from "three";
-import { AprilTagDetector, loadWasm } from "@webarkit/apriltag";
+import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
+import PointTrackingManager from "./PointTrackingManager";
 
 interface ARAnchorsModeProps {
   referenceImage: string | null;
+  ghostMentorEnabled?: boolean;
 }
 
 export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
+  const trackerRef = useRef<OpenCVTracker | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
 
-  const [detector, setDetector] = useState<AprilTagDetector | null>(null);
   const [streamActive, setStreamActive] = useState(false);
-  const [detectedAnchors, setDetectedAnchors] = useState<any[]>([]);
-  const [selectedAnchorId, setSelectedAnchorId] = useState<number | null>(null);
+  const [trackingActive, setTrackingActive] = useState(false);
+  const [trackingStability, setTrackingStability] = useState(0);
+  const [matchedPoints, setMatchedPoints] = useState(0);
+  const [configuredPoints, setConfiguredPoints] = useState<TrackingPoint[]>([]);
+  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
 
   const threeRef = useRef<{
     scene?: THREE.Scene;
     camera?: THREE.PerspectiveCamera;
     renderer?: THREE.WebGLRenderer;
-    anchorPlane?: THREE.Mesh;
+    referencePlane?: THREE.Mesh;
   }>({});
 
-  // Load WASM + initialize detector
+  // Check if OpenCV is loaded
   useEffect(() => {
-    loadWasm().then(() => {
-      const det = new AprilTagDetector({
-        inputImage: { width: 640, height: 480 },
-        family: "tag36h11",
-      });
-      setDetector(det);
-      toast.success("Module Anchors chargé (AprilTags)");
-    });
+    const checkOpenCV = () => {
+      if ((window as any).cv) {
+        toast.success("OpenCV chargé et prêt");
+      } else {
+        toast.error("OpenCV non disponible. Rechargez la page.");
+      }
+    };
+    
+    if (document.readyState === "complete") {
+      checkOpenCV();
+    } else {
+      window.addEventListener("load", checkOpenCV);
+      return () => window.removeEventListener("load", checkOpenCV);
+    }
   }, []);
 
-  // Start camera
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment",
-          width: 640,
-          height: 480,
-        },
+        video: { facingMode: "environment", width: 1280, height: 720 }
       });
 
       if (videoRef.current) {
@@ -64,99 +70,131 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     }
   };
 
-  // Initialize THREE for AR overlays
   const initThree = () => {
     if (!mountRef.current) return;
 
     const scene = new THREE.Scene();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const camera = new THREE.PerspectiveCamera(
       50,
-      window.innerWidth / window.innerHeight,
-      0.01,
-      100
+      canvas.width / canvas.height,
+      0.1,
+      1000
     );
-    camera.position.set(0, 0, 0);
+    camera.position.set(0, 0, 5);
 
-    const renderer = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true,
-      preserveDrawingBuffer: true,
-    });
-
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(canvas.width, canvas.height);
     mountRef.current.innerHTML = "";
     mountRef.current.appendChild(renderer.domElement);
 
     threeRef.current = { scene, camera, renderer };
   };
 
-  // Add reference image plane once anchor selected
-  const placeReferenceImage = (anchor: any) => {
-    const { scene } = threeRef.current;
-    if (!scene || !referenceImage) return;
+  const updateReferencePlane = (homography: number[]) => {
+    const { scene, referencePlane } = threeRef.current;
+    if (!scene || !referenceImageUrl) return;
 
-    // Remove old plane
-    if (threeRef.current.anchorPlane) {
-      scene.remove(threeRef.current.anchorPlane);
+    if (!referencePlane) {
+      const loader = new THREE.TextureLoader();
+      loader.load(referenceImageUrl, (texture) => {
+        const aspect = texture.image.width / texture.image.height;
+        const geometry = new THREE.PlaneGeometry(2, 2 / aspect);
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          opacity: 0.8,
+          side: THREE.DoubleSide
+        });
+
+        const plane = new THREE.Mesh(geometry, material);
+        scene.add(plane);
+        threeRef.current.referencePlane = plane;
+      });
     }
 
-    const loader = new THREE.TextureLoader();
-    loader.load(referenceImage, (texture) => {
-      const aspect = texture.image.width / texture.image.height;
-      const geometry = new THREE.PlaneGeometry(1, 1 / aspect);
-
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: 0.9,
-        side: THREE.DoubleSide,
-      });
-
-      const plane = new THREE.Mesh(geometry, material);
-      plane.position.set(anchor.centerX / 200 - 1.6, -anchor.centerY / 200 + 1.2, -2);
-      plane.rotation.x = -Math.PI * 0.5;
-
-      scene.add(plane);
-      threeRef.current.anchorPlane = plane;
-
-      toast.success("Ancre sélectionnée — tracking activé");
-    });
+    if (referencePlane && homography) {
+      const matrix = new THREE.Matrix4();
+      matrix.set(
+        homography[0], homography[1], 0, homography[2],
+        homography[3], homography[4], 0, homography[5],
+        0, 0, 1, 0,
+        homography[6], homography[7], 0, homography[8]
+      );
+      referencePlane.matrix.copy(matrix);
+      referencePlane.matrixAutoUpdate = false;
+    }
   };
 
-  // Detection loop
-  useEffect(() => {
-    if (!detector || !streamActive) return;
+  const startTracking = () => {
+    if (!streamActive || configuredPoints.length < 4) {
+      toast.error("Configurez d'abord les points de tracking");
+      return;
+    }
+
+    if (!(window as any).cv) {
+      toast.error("OpenCV non chargé");
+      return;
+    }
 
     initThree();
+    trackerRef.current = new OpenCVTracker();
 
-    const detectLoop = () => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0);
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    trackerRef.current.initializeReferencePoints(imageData, configuredPoints);
+    setTrackingActive(true);
+    toast.success("Tracking activé");
+  };
+
+  useEffect(() => {
+    if (!trackingActive || !trackerRef.current || !streamActive) return;
+
+    const trackLoop = () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
       if (!video || !canvas) return;
 
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const detections = detector.detect(imageData);
 
-      setDetectedAnchors(detections);
+      const result = trackerRef.current!.trackFrame(imageData);
+      
+      setMatchedPoints(result.matchedPoints);
+      setTrackingStability(result.stability);
 
-      // Update 3D tracking if an anchor is selected
-      if (selectedAnchorId !== null) {
-        const anchor = detections.find((d) => d.id === selectedAnchorId);
-        if (anchor) {
-          placeReferenceImage(anchor);
-          renderThree();
-        }
+      if (result.isTracking && result.homography) {
+        updateReferencePlane(result.homography);
+        renderThree();
       }
 
-      requestAnimationFrame(detectLoop);
+      animationFrameRef.current = requestAnimationFrame(trackLoop);
     };
 
-    detectLoop();
-  }, [detector, streamActive, selectedAnchorId, referenceImage]);
+    trackLoop();
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [trackingActive, streamActive]);
 
   const renderThree = () => {
     const { scene, camera, renderer } = threeRef.current;
@@ -165,73 +203,86 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     }
   };
 
+  const handleConfigurationReady = (refImage: string, points: TrackingPoint[]) => {
+    setReferenceImageUrl(refImage);
+    setConfiguredPoints(points);
+    toast.success(`Configuration prête avec ${points.length} points`);
+  };
+
   return (
-    <div className="space-y-4">
-      <Alert>
-        <AlertDescription>
-          Mode Anchres AR : vous voyez la caméra en direct, l’application détecte
-          vos ancres (AprilTags), vous pouvez en sélectionner une pour activer le
-          tracking 3D et y attacher votre image.
-        </AlertDescription>
-      </Alert>
-
-      {/* Live video overlay */}
-      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover"
-        ></video>
-
-        {/* Canvas pour la détection */}
-        <canvas
-          ref={canvasRef}
-          width={640}
-          height={480}
-          className="absolute inset-0 w-full h-full opacity-0"
-        />
-
-        {/* THREE.js overlay */}
-        <div
-          ref={mountRef}
-          className="absolute inset-0 pointer-events-none"
-        ></div>
-
-        {/* UI overlay detection */}
-        {detectedAnchors.length > 0 && (
-          <div className="absolute top-2 left-2 bg-white/80 p-2 rounded shadow text-black">
-            <p className="font-semibold mb-1">Ancres détectées :</p>
-            {detectedAnchors.map((a) => (
-              <Button
-                key={a.id}
-                size="sm"
-                className={`mr-2 ${
-                  selectedAnchorId === a.id ? "bg-primary" : ""
-                }`}
-                onClick={() => setSelectedAnchorId(a.id)}
-              >
-                Ancre #{a.id}
-              </Button>
-            ))}
-          </div>
-        )}
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="lg:col-span-1 space-y-4">
+        <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
       </div>
 
-      {!streamActive && (
-        <Button className="w-full" onClick={startCamera}>
-          Activer la caméra
-        </Button>
-      )}
+      <div className="lg:col-span-3 space-y-4">
+        <Alert>
+          <AlertDescription>
+            Mode AR par Points : Dessinez des points sur votre feuille, configurez-les, 
+            puis activez le tracking pour projeter votre image de référence.
+          </AlertDescription>
+        </Alert>
 
-      {selectedAnchorId !== null && referenceImage && (
-        <Card className="p-3">
-          <p className="font-semibold text-primary">
-            Tracking 3D actif sur l’ancre #{selectedAnchorId}
-          </p>
-          <p className="text-sm opacity-70">
-            L’image est maintenant attachée à l’ancre et suivie en 3D.
-          </p>
-        </Card>
-      )}
+        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+
+          <canvas
+            ref={canvasRef}
+            width={1280}
+            height={720}
+            className="absolute inset-0 w-full h-full opacity-0"
+          />
+
+          <div
+            ref={mountRef}
+            className="absolute inset-0 pointer-events-none"
+          />
+
+          {trackingActive && (
+            <div className="absolute top-2 right-2 bg-black/70 text-white p-3 rounded-lg space-y-1">
+              <p className="text-xs font-semibold">Tracking actif</p>
+              <div className="flex items-center gap-2">
+                <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${trackingStability}%` }}
+                  />
+                </div>
+                <span className="text-xs">{Math.round(trackingStability)}%</span>
+              </div>
+              <p className="text-xs">Points: {matchedPoints}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          {!streamActive ? (
+            <Button className="flex-1" onClick={startCamera}>
+              Activer la caméra
+            </Button>
+          ) : (
+            <Button 
+              className="flex-1" 
+              onClick={startTracking}
+              disabled={configuredPoints.length < 4 || trackingActive}
+            >
+              {trackingActive ? "Tracking actif" : "Démarrer le tracking"}
+            </Button>
+          )}
+        </div>
+
+        {trackingActive && (
+          <Card className="p-3 bg-primary/10 border-primary">
+            <p className="font-semibold text-sm">Tracking 3D actif</p>
+            <p className="text-xs text-muted-foreground">
+              L'image de référence est projetée selon vos points de tracking
+            </p>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
