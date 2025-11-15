@@ -236,111 +236,127 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   useEffect(() => {
     if (!trackingActive || !trackerRef.current || !streamActive || !overlayImage) return;
 
-    const trackLoop = () => {
+    let lastTime = performance.now();
+    const targetFPS = 30;
+    const frameInterval = 1000 / targetFPS;
+
+    const trackLoop = (currentTime: number) => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const cv = (window as any).cv;
 
       if (!video || !canvas || !cv) return;
 
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { alpha: false });
       if (!ctx) return;
 
-      // CRUCIAL: Effacer complètement le canvas à chaque frame
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const elapsed = currentTime - lastTime;
+      
+      if (elapsed >= frameInterval) {
+        lastTime = currentTime - (elapsed % frameInterval);
 
-      // 1. Dessiner la vidéo en arrière-plan
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // ÉTAPE 1: Effacer COMPLÈTEMENT le canvas (avec fillRect pour forcer)
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 2. Capturer frame pour tracking
-      const frameImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const result = trackerRef.current!.trackFrame(frameImageData);
+        // ÉTAPE 2: Dessiner la vidéo en arrière-plan
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      setMatchedPoints(result.matchedPoints);
-      setTrackingStability(result.stability);
+        // ÉTAPE 3: Capturer frame pour tracking
+        const frameImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const result = trackerRef.current!.trackFrame(frameImageData);
 
-      // 3. Si tracking OK, projeter l'overlay
-      if (result.isTracking && result.homography && overlayToReferenceHomography) {
-        try {
-          // Calculer homographie finale
-          const rawFinalH = multiplyHomographies(result.homography, overlayToReferenceHomography);
-          
-          // Appliquer le lissage pour éviter les sauts
-          const finalH = smoothingRef.current.smooth(rawFinalH);
+        setMatchedPoints(result.matchedPoints);
+        setTrackingStability(result.stability);
 
-          // Créer matrice OpenCV
-          const HMat = cv.matFromArray(3, 3, cv.CV_64F, finalH);
+        // ÉTAPE 4: Si tracking OK, projeter l'overlay
+        if (result.isTracking && result.homography && overlayToReferenceHomography) {
+          try {
+            // Calculer homographie finale
+            const rawFinalH = multiplyHomographies(result.homography, overlayToReferenceHomography);
+            
+            // Appliquer le lissage pour éviter les sauts
+            const finalH = smoothingRef.current.smooth(rawFinalH);
 
-          // Convertir overlay en Mat
-          const overlayCanvas = document.createElement("canvas");
-          overlayCanvas.width = overlayImage.width;
-          overlayCanvas.height = overlayImage.height;
-          const overlayCtx = overlayCanvas.getContext("2d")!;
-          overlayCtx.drawImage(overlayImage, 0, 0);
-          const overlayImageData = overlayCtx.getImageData(0, 0, overlayImage.width, overlayImage.height);
-          const overlayMat = cv.matFromImageData(overlayImageData);
+            // Créer matrice OpenCV
+            const HMat = cv.matFromArray(3, 3, cv.CV_64F, finalH);
 
-          // Warper l'overlay
-          const warpedMat = new cv.Mat();
-          cv.warpPerspective(
-            overlayMat, 
-            warpedMat, 
-            HMat, 
-            new cv.Size(canvas.width, canvas.height),
-            cv.INTER_LINEAR,
-            cv.BORDER_TRANSPARENT
-          );
+            // Convertir overlay en Mat
+            const overlayCanvas = document.createElement("canvas");
+            overlayCanvas.width = overlayImage.width;
+            overlayCanvas.height = overlayImage.height;
+            const overlayCtx = overlayCanvas.getContext("2d", { alpha: true })!;
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            overlayCtx.drawImage(overlayImage, 0, 0);
+            const overlayImageData = overlayCtx.getImageData(0, 0, overlayImage.width, overlayImage.height);
+            const overlayMat = cv.matFromImageData(overlayImageData);
 
-          // Convertir en ImageData et dessiner
-          const warpedCanvas = document.createElement("canvas");
-          warpedCanvas.width = canvas.width;
-          warpedCanvas.height = canvas.height;
-          cv.imshow(warpedCanvas, warpedMat);
+            // Warper l'overlay
+            const warpedMat = new cv.Mat();
+            cv.warpPerspective(
+              overlayMat, 
+              warpedMat, 
+              HMat, 
+              new cv.Size(canvas.width, canvas.height),
+              cv.INTER_LINEAR,
+              cv.BORDER_CONSTANT,
+              new cv.Scalar(0, 0, 0, 0)
+            );
 
-          // Superposer avec opacité contrôlée
-          ctx.globalAlpha = overlayOpacity[0] / 100;
-          ctx.drawImage(warpedCanvas, 0, 0);
-          ctx.globalAlpha = 1.0;
+            // Convertir en canvas temporaire
+            const warpedCanvas = document.createElement("canvas");
+            warpedCanvas.width = canvas.width;
+            warpedCanvas.height = canvas.height;
+            const warpedCtx = warpedCanvas.getContext("2d", { alpha: true })!;
+            cv.imshow(warpedCanvas, warpedMat);
 
-          // Dessiner points de debug SEULEMENT si activé
-          if (showDebugPoints) {
-            configuredPoints.forEach((refPt, idx) => {
-              const h = finalH;
-              const w = h[6] * refPt.x + h[7] * refPt.y + h[8];
-              if (Math.abs(w) < 0.001) return;
-              
-              const x = (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w;
-              const y = (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w;
+            // IMPORTANT: Sauvegarder l'état, appliquer opacité, dessiner, restaurer
+            ctx.save();
+            ctx.globalAlpha = overlayOpacity[0] / 100;
+            ctx.globalCompositeOperation = "source-over";
+            ctx.drawImage(warpedCanvas, 0, 0);
+            ctx.restore();
 
-              ctx.beginPath();
-              ctx.arc(x, y, 8, 0, 2 * Math.PI);
-              ctx.fillStyle = "rgba(34, 197, 94, 0.8)";
-              ctx.fill();
-              ctx.strokeStyle = "#22c55e";
-              ctx.lineWidth = 2;
-              ctx.stroke();
+            // Dessiner points de debug SEULEMENT si activé
+            if (showDebugPoints) {
+              configuredPoints.forEach((refPt, idx) => {
+                const h = finalH;
+                const w = h[6] * refPt.x + h[7] * refPt.y + h[8];
+                if (Math.abs(w) < 0.001) return;
+                
+                const x = (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w;
+                const y = (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w;
 
-              ctx.fillStyle = "white";
-              ctx.font = "bold 12px sans-serif";
-              ctx.textAlign = "center";
-              ctx.textBaseline = "middle";
-              ctx.fillText((idx + 1).toString(), x, y);
-            });
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                ctx.fillStyle = "rgba(34, 197, 94, 0.8)";
+                ctx.fill();
+                ctx.strokeStyle = "#22c55e";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.fillStyle = "white";
+                ctx.font = "bold 12px sans-serif";
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.fillText((idx + 1).toString(), x, y);
+              });
+            }
+
+            // Cleanup
+            HMat.delete();
+            overlayMat.delete();
+            warpedMat.delete();
+          } catch (error) {
+            console.error("Warp failed:", error);
           }
-
-          // Cleanup
-          HMat.delete();
-          overlayMat.delete();
-          warpedMat.delete();
-        } catch (error) {
-          console.error("Warp failed:", error);
         }
       }
 
       animationFrameRef.current = requestAnimationFrame(trackLoop);
     };
 
-    trackLoop();
+    animationFrameRef.current = requestAnimationFrame(trackLoop);
 
     return () => {
       if (animationFrameRef.current) {
