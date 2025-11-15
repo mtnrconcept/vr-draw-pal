@@ -48,6 +48,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   const [videoAnchorRatios, setVideoAnchorRatios] = useState<
     { id: string; label: string; ratioX: number; ratioY: number }[]
   >([]);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   const handleOverlayUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -324,6 +325,61 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     stopCameraStream();
     setStep("anchor");
     toast.success("Vidéo capturée ! Placez maintenant les points d'ancrage.");
+  };
+
+  const detectMarkersAutomatically = async () => {
+    const canvas = overlayCanvasRef.current;
+    if (!canvas || !overlayImage) {
+      toast.error("Aucune image à analyser");
+      return;
+    }
+
+    setIsDetecting(true);
+    toast.success("Détection automatique en cours...");
+
+    try {
+      // Attendre un peu pour que le message s'affiche
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Impossible d'obtenir le contexte canvas");
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // Utiliser la détection automatique d'OpenCV
+      const { OpenCVTracker } = await import("@/lib/opencv/tracker");
+      const detectedMarkers = OpenCVTracker.detectMarkers(imageData);
+
+      if (detectedMarkers.length === 0) {
+        toast.warning("Aucun marqueur détecté. Dessinez 4 marqueurs noirs bien visibles.");
+        setIsDetecting(false);
+        return;
+      }
+
+      if (detectedMarkers.length < 4) {
+        toast.warning(`Seulement ${detectedMarkers.length} marqueur(s) détecté(s). 4 marqueurs sont recommandés.`);
+      }
+
+      // Mettre à jour les ancres
+      setOverlayAnchors(detectedMarkers);
+      redrawOverlayCanvas(detectedMarkers);
+
+      // Créer les ratios pour la vidéo
+      const ratios = detectedMarkers.map(marker => ({
+        id: marker.id,
+        label: marker.label || "Point",
+        ratioX: marker.x / canvas.width,
+        ratioY: marker.y / canvas.height
+      }));
+      setVideoAnchorRatios(ratios);
+
+      toast.success(`${detectedMarkers.length} marqueur(s) détecté(s) automatiquement !`);
+    } catch (error) {
+      console.error("Erreur de détection:", error);
+      toast.error("Erreur lors de la détection automatique");
+    } finally {
+      setIsDetecting(false);
+    }
   };
 
   const stopCameraStream = () => {
@@ -629,14 +685,24 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <p className="text-xs text-muted-foreground mb-2">
-                Cliquez sur l'image pour placer les points d'ancrage virtuels.
+                Cliquez sur l'image pour placer les points d'ancrage virtuels, ou utilisez la détection automatique.
               </p>
-              <div className="relative w-full rounded-lg overflow-hidden border border-border">
-                <canvas
-                  ref={overlayCanvasRef}
-                  onClick={handleOverlayClick}
-                  className="w-full cursor-crosshair"
-                />
+              <div className="space-y-2">
+                <Button 
+                  onClick={detectMarkersAutomatically}
+                  disabled={isDetecting}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  {isDetecting ? "Détection en cours..." : "🎯 Détecter automatiquement les marqueurs"}
+                </Button>
+                <div className="relative w-full rounded-lg overflow-hidden border border-border">
+                  <canvas
+                    ref={overlayCanvasRef}
+                    onClick={handleOverlayClick}
+                    className="w-full cursor-crosshair"
+                  />
+                </div>
               </div>
             </div>
             <div>

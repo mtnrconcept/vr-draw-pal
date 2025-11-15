@@ -207,4 +207,112 @@ export class OpenCVTracker {
     this.lastPositions = [];
     this.initialized = false;
   }
+
+  /**
+   * Détecte automatiquement les marqueurs dans une image
+   * Cherche des cercles ou des croix noires bien contrastées
+   */
+  static detectMarkers(imageData: ImageData): TrackingPoint[] {
+    const cv = (window as any).cv;
+    if (!cv) {
+      throw new Error("OpenCV.js not loaded");
+    }
+
+    const src = cv.matFromImageData(imageData);
+    const gray = new cv.Mat();
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+    // Binarisation adaptative pour détecter les zones sombres
+    const binary = new cv.Mat();
+    cv.adaptiveThreshold(
+      gray,
+      binary,
+      255,
+      cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+      cv.THRESH_BINARY_INV,
+      11,
+      2
+    );
+
+    // Morphologie pour nettoyer le bruit
+    const kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+    cv.morphologyEx(binary, binary, cv.MORPH_OPEN, kernel);
+    cv.morphologyEx(binary, binary, cv.MORPH_CLOSE, kernel);
+
+    // Détection de contours
+    const contours = new cv.MatVector();
+    const hierarchy = new cv.Mat();
+    cv.findContours(
+      binary,
+      contours,
+      hierarchy,
+      cv.RETR_EXTERNAL,
+      cv.CHAIN_APPROX_SIMPLE
+    );
+
+    const markers: TrackingPoint[] = [];
+    const minArea = (imageData.width * imageData.height) * 0.0001; // 0.01% de l'image
+    const maxArea = (imageData.width * imageData.height) * 0.01;   // 1% de l'image
+
+    // Chercher les contours qui ressemblent à des marqueurs
+    for (let i = 0; i < contours.size(); i++) {
+      const contour = contours.get(i);
+      const area = cv.contourArea(contour);
+
+      if (area >= minArea && area <= maxArea) {
+        // Calculer le centre du contour
+        const moments = cv.moments(contour);
+        if (moments.m00 !== 0) {
+          const cx = moments.m10 / moments.m00;
+          const cy = moments.m01 / moments.m00;
+
+          // Vérifier si le contour est suffisamment circulaire ou carré
+          const perimeter = cv.arcLength(contour, true);
+          const circularity = (4 * Math.PI * area) / (perimeter * perimeter);
+
+          // Accepter les formes circulaires (0.7+) ou carrées (~0.6-0.8)
+          if (circularity > 0.5) {
+            markers.push({
+              id: `marker_${i}_${Date.now()}`,
+              x: Math.round(cx),
+              y: Math.round(cy),
+              label: `Marqueur ${markers.length + 1}`
+            });
+          }
+        }
+      }
+    }
+
+    // Nettoyer
+    src.delete();
+    gray.delete();
+    binary.delete();
+    kernel.delete();
+    contours.delete();
+    hierarchy.delete();
+
+    // Trier les marqueurs par position (haut-gauche, haut-droite, bas-droite, bas-gauche)
+    if (markers.length >= 4) {
+      markers.sort((a, b) => {
+        // Trier d'abord par Y (haut vs bas), puis par X (gauche vs droite)
+        if (Math.abs(a.y - b.y) > imageData.height * 0.2) {
+          return a.y - b.y;
+        }
+        return a.x - b.x;
+      });
+
+      // Réorganiser pour avoir: TL, TR, BR, BL
+      const topTwo = markers.slice(0, 2).sort((a, b) => a.x - b.x);
+      const bottomTwo = markers.slice(2, 4).sort((a, b) => b.x - a.x).reverse();
+      
+      const sorted = [...topTwo, ...bottomTwo];
+      sorted.forEach((marker, idx) => {
+        marker.label = `Point ${idx + 1}`;
+      });
+
+      return sorted.slice(0, 4);
+    }
+
+    return markers.slice(0, 4);
+  }
 }
