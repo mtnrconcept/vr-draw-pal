@@ -15,6 +15,8 @@ interface ClassicModeProps {
   strobeSpeed: number;
   strobeMinOpacity: number;
   strobeMaxOpacity: number;
+  contrast: number;
+  brightness: number;
 }
 
 const ClassicMode = ({
@@ -27,6 +29,8 @@ const ClassicMode = ({
   strobeSpeed,
   strobeMinOpacity,
   strobeMaxOpacity,
+  contrast,
+  brightness,
 }: ClassicModeProps) => {
   const [opacity, setOpacity] = useState(50);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -109,6 +113,7 @@ const ClassicMode = ({
           playsInline
           muted
           className="h-full w-full object-cover"
+          style={{ filter: `brightness(${brightness}%) contrast(${contrast}%)` }}
         />
 
         {/* Reference image overlay */}

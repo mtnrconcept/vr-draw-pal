@@ -19,6 +19,8 @@ const DrawMasterVR = () => {
   const [strobeSpeed, setStrobeSpeed] = useState(2);
   const [strobeMinOpacity, setStrobeMinOpacity] = useState(30);
   const [strobeMaxOpacity, setStrobeMaxOpacity] = useState(90);
+  const [contrast, setContrast] = useState(100);
+  const [brightness, setBrightness] = useState(100);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -129,6 +131,10 @@ const DrawMasterVR = () => {
               onStrobeMaxOpacityChange={(value) => {
                 setStrobeMaxOpacity(Math.max(value, strobeMinOpacity));
               }}
+              contrast={contrast}
+              onContrastChange={setContrast}
+              brightness={brightness}
+              onBrightnessChange={setBrightness}
             />
           </Card>
 
@@ -156,6 +162,8 @@ const DrawMasterVR = () => {
                     strobeSpeed={strobeSpeed}
                     strobeMinOpacity={strobeMinOpacity}
                     strobeMaxOpacity={strobeMaxOpacity}
+                    contrast={contrast}
+                    brightness={brightness}
                   />
                 </TabsContent>
                 <TabsContent value="ar" className="mt-0 h-full">
@@ -168,6 +176,8 @@ const DrawMasterVR = () => {
                     strobeSpeed={strobeSpeed}
                     strobeMinOpacity={strobeMinOpacity}
                     strobeMaxOpacity={strobeMaxOpacity}
+                    contrast={contrast}
+                    brightness={brightness}
                   />
                 </TabsContent>
               </div>

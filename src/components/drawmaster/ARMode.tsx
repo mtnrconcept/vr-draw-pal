@@ -3,14 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
 import PointTrackingManager from "./PointTrackingManager";
-import ARWorkflowGuide from "./ARWorkflowGuide";
 import { TrackingConfiguration } from "@/hooks/useTrackingPoints";
-import { Eye, EyeOff } from "lucide-react";
-import GhostMentor from "./GhostMentor";
+import { Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
 
 // Simple toast replacement
 const toast = {
@@ -28,6 +25,8 @@ interface ARAnchorsModeProps {
   strobeSpeed: number;
   strobeMinOpacity: number;
   strobeMaxOpacity: number;
+  contrast: number;
+  brightness: number;
 }
 
 // --- LISSAGE D'HOMOGRAPHIE HAUTE PRÉCISION ------------------------------
@@ -78,9 +77,12 @@ export default function ARAnchorsMode({
   strobeSpeed,
   strobeMinOpacity,
   strobeMaxOpacity,
+  contrast,
+  brightness,
 }: ARAnchorsModeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoContainerRef = useRef<HTMLDivElement>(null);
   const trackerRef = useRef<OpenCVTracker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const smoothingRef = useRef<HomographySmoothing>(
@@ -110,6 +112,7 @@ export default function ARAnchorsMode({
   const [showDebugPoints, setShowDebugPoints] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState([70]);
   const strobeAnimationRef = useRef<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (strobeEnabled) {
@@ -118,6 +121,37 @@ export default function ARAnchorsMode({
       strobeAnimationRef.current = 0;
     }
   }, [strobeEnabled, strobeMinOpacity, strobeMaxOpacity]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === videoContainerRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    const container = videoContainerRef.current;
+    if (!container) return;
+
+    try {
+      if (document.fullscreenElement === container) {
+        await document.exitFullscreen?.();
+      } else if (!document.fullscreenElement) {
+        await container.requestFullscreen?.();
+      } else if (document.exitFullscreen) {
+        await document.exitFullscreen();
+        if (container.requestFullscreen) {
+          await container.requestFullscreen();
+        }
+      }
+    } catch (error) {
+      console.error("Impossible de changer le mode plein écran", error);
+    }
+  };
 
   // Check if OpenCV is loaded
   useEffect(() => {
@@ -375,7 +409,9 @@ export default function ARAnchorsMode({
         // 1) Effacer le canvas et dessiner la vidéo
         ctx.fillStyle = "#000000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.filter = "none";
 
         // 2) Récupérer la frame pour le tracker
         const frameImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -609,6 +645,8 @@ export default function ARAnchorsMode({
     strobeSpeed,
     strobeMinOpacity,
     strobeMaxOpacity,
+    brightness,
+    contrast,
   ]);
 
   const computeOverlayToReference = (
@@ -705,57 +743,71 @@ export default function ARAnchorsMode({
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
-      <div className="space-y-6">
-        <div className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
-          <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
-        </div>
-        <div className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
-          <ARWorkflowGuide />
-        </div>
+    <div className="space-y-6">
+      <div
+        ref={videoContainerRef}
+        className={`relative w-full overflow-hidden rounded-[28px] border border-white/60 bg-black/85 shadow-[var(--shadow-card)] ${
+          isFullscreen ? "h-full" : "aspect-video"
+        }`}
+      >
+        <video
+          ref={videoRef}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ filter: `brightness(${brightness}%) contrast(${contrast}%)` }}
+          autoPlay
+          playsInline
+          muted
+        />
+
+        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+        <Button
+          type="button"
+          size="icon"
+          variant="secondary"
+          onClick={toggleFullscreen}
+          className="absolute left-4 top-4 z-20 h-10 w-10 rounded-full border border-white/40 bg-black/60 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)] hover:bg-black/80"
+        >
+          {isFullscreen ? (
+            <Minimize2 className="h-5 w-5" />
+          ) : (
+            <Maximize2 className="h-5 w-5" />
+          )}
+        </Button>
+
+        {trackingActive && (
+          <div className="absolute right-4 top-4 rounded-[20px] border border-white/40 bg-black/70 px-4 py-3 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)]">
+            <p className="text-xs font-semibold uppercase tracking-widest">Tracking actif</p>
+            <div className="mt-2 flex items-center gap-2">
+              <div className="h-2 w-28 overflow-hidden rounded-full bg-white/20">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${trackingStability}%` }}
+                />
+              </div>
+              <span className="text-xs font-semibold">{Math.round(trackingStability)}%</span>
+            </div>
+            <p className="mt-1 text-[10px] uppercase tracking-widest text-white/70">
+              Points : {matchedPoints}/{configuredPoints.length}
+            </p>
+          </div>
+        )}
       </div>
 
-      <div className="space-y-6">
-        <Alert className="rounded-[28px] border border-white/60 bg-white/75 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
-          <AlertDescription className="text-sm leading-relaxed text-muted-foreground">
-            Mode AR par points : configurez vos ancres (minimum 4, idéalement 6 à 8) puis lancez le tracking pour projeter votre image comme si elle était imprimée.
-          </AlertDescription>
-        </Alert>
+      <Alert className="rounded-[28px] border border-white/60 bg-white/75 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+        <AlertDescription className="text-sm leading-relaxed text-muted-foreground">
+          Mode AR par points : configurez vos ancres (minimum 4, idéalement 6 à 8) puis lancez le tracking pour projeter votre image comme si elle était imprimée.
+        </AlertDescription>
+      </Alert>
 
-        <div className="relative aspect-video w-full overflow-hidden rounded-[32px] border border-white/60 bg-black/85 shadow-[var(--shadow-soft)]">
-          <video
-            ref={videoRef}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-
-          <canvas
-            ref={canvasRef}
-            className="absolute inset-0 h-full w-full"
-          />
-
-          {trackingActive && (
-            <div className="absolute right-4 top-4 rounded-[20px] border border-white/40 bg-black/70 px-4 py-3 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)]">
-              <p className="text-xs font-semibold uppercase tracking-widest">Tracking actif</p>
-              <div className="mt-2 flex items-center gap-2">
-                <div className="h-2 w-28 overflow-hidden rounded-full bg-white/20">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${trackingStability}%` }}
-                  />
-                </div>
-                <span className="text-xs font-semibold">{Math.round(trackingStability)}%</span>
-              </div>
-              <p className="mt-1 text-[10px] uppercase tracking-widest text-white/70">
-                Points : {matchedPoints}/{configuredPoints.length}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="flex gap-3">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <Card className="space-y-6 rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+          <div className="flex flex-col gap-3 sm:flex-row">
             {!streamActive ? (
-              <Button className="h-12 flex-1 rounded-full bg-gradient-to-r from-primary to-secondary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]" onClick={startCamera}>
+              <Button
+                className="h-12 flex-1 rounded-full bg-gradient-to-r from-primary to-secondary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
+                onClick={startCamera}
+              >
                 Activer la caméra
               </Button>
             ) : !trackingActive ? (
@@ -782,29 +834,26 @@ export default function ARAnchorsMode({
           </div>
 
           {trackingActive && (
-            <div className="grid gap-4">
-              <Card className="rounded-[24px] border border-white/60 bg-white/75 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                    <span>{strobeEnabled ? "Opacité contrôlée par le strobe" : "Opacité"}</span>
-                    {!strobeEnabled && <span className="text-primary">{overlayOpacity[0]}%</span>}
-                  </div>
-                  <Slider
-                    id="opacity"
-                    value={overlayOpacity}
-                    onValueChange={(value) =>
-                      !strobeEnabled && setOverlayOpacity(value)
-                    }
-                    min={0}
-                    max={100}
-                    step={5}
-                    disabled={strobeEnabled}
-                  />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-[22px] border border-white/60 bg-white/75 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-[var(--shadow-card)] backdrop-blur-xl">
+                <div className="flex items-center justify-between">
+                  <span>{strobeEnabled ? "Opacité contrôlée par le strobe" : "Opacité"}</span>
+                  {!strobeEnabled && <span className="text-primary">{overlayOpacity[0]}%</span>}
                 </div>
-              </Card>
+                <Slider
+                  id="opacity"
+                  value={overlayOpacity}
+                  onValueChange={(value) => !strobeEnabled && setOverlayOpacity(value)}
+                  min={0}
+                  max={100}
+                  step={5}
+                  disabled={strobeEnabled}
+                  className="mt-3"
+                />
+              </div>
 
-              <Card className="rounded-[24px] border border-white/60 bg-white/75 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl">
-                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              <div className="rounded-[22px] border border-white/60 bg-white/75 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-[var(--shadow-card)] backdrop-blur-xl">
+                <div className="flex items-center justify-between">
                   <span>Points de debug</span>
                   <div className="flex items-center gap-2">
                     {showDebugPoints ? (
@@ -819,19 +868,25 @@ export default function ARAnchorsMode({
                     />
                   </div>
                 </div>
-              </Card>
+              </div>
             </div>
           )}
-        </div>
 
-        {trackingActive && (
-          <Card className="rounded-[28px] border border-primary/40 bg-primary/15 p-6 text-sm text-primary-foreground shadow-[var(--shadow-card)]">
-            <p className="font-semibold uppercase tracking-widest">Tracking 2D stabilisé</p>
-            <p className="mt-2 text-xs leading-relaxed text-primary-foreground/80">
-              L'image reste verrouillée sur votre feuille grâce au lissage adaptatif et au maintien de la dernière pose fiable pour une sensation quasi imprimée.
-            </p>
+          {trackingActive && (
+            <div className="rounded-[24px] border border-primary/40 bg-primary/10 p-5 text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-[var(--shadow-card)]">
+              <p>Tracking 2D stabilisé</p>
+              <p className="mt-2 text-[11px] font-normal normal-case text-primary-foreground/80">
+                L'image reste verrouillée sur votre feuille grâce au lissage adaptatif et au maintien de la dernière pose fiable pour une sensation quasi imprimée.
+              </p>
+            </div>
+          )}
+        </Card>
+
+        <div className="space-y-6">
+          <Card className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+            <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
           </Card>
-        )}
+        </div>
       </div>
     </div>
   );

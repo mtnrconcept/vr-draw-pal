@@ -5,15 +5,12 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { 
-  Grid, 
-  Zap, 
-  Palette, 
-  Camera, 
-  Flashlight, 
+  Grid,
+  Zap,
+  Palette,
+  Flashlight,
   Video,
   Upload,
-  Sun,
-  Contrast
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +31,10 @@ interface DrawingToolsProps {
   strobeMaxOpacity: number;
   onStrobeMinOpacityChange: (min: number) => void;
   onStrobeMaxOpacityChange: (max: number) => void;
+  contrast: number;
+  onContrastChange: (value: number) => void;
+  brightness: number;
+  onBrightnessChange: (value: number) => void;
 }
 
 const DrawingTools = ({
@@ -53,9 +54,11 @@ const DrawingTools = ({
   strobeMaxOpacity,
   onStrobeMinOpacityChange,
   onStrobeMaxOpacityChange,
+  contrast,
+  onContrastChange,
+  brightness,
+  onBrightnessChange,
 }: DrawingToolsProps) => {
-  const [contrast, setContrast] = useState(100);
-  const [brightness, setBrightness] = useState(100);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [timelapseRecording, setTimelapseRecording] = useState(false);
 
@@ -243,7 +246,7 @@ const DrawingTools = ({
             </div>
             <Slider
               value={[contrast]}
-              onValueChange={(value) => setContrast(value[0])}
+              onValueChange={(value) => onContrastChange(Math.round(value[0]))}
               min={0}
               max={200}
               step={1}
@@ -256,7 +259,7 @@ const DrawingTools = ({
             </div>
             <Slider
               value={[brightness]}
-              onValueChange={(value) => setBrightness(value[0])}
+              onValueChange={(value) => onBrightnessChange(Math.round(value[0]))}
               min={0}
               max={200}
               step={1}
