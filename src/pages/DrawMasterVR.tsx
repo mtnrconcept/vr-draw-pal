@@ -83,7 +83,6 @@ const DrawMasterVR = () => {
               <TabsContent value="ar" className="mt-0">
                 <ARMode
                   referenceImage={referenceImage}
-                  ghostMentorEnabled={ghostMentorEnabled}
                 />
               </TabsContent>
             </Tabs>

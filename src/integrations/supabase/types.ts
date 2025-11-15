@@ -14,54 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
-      drawing_exercises: {
+      anchors: {
         Row: {
-          id: string
-          level: string | null
-          focus: string | null
-          title: string
-          description: string
-          difficulty: string | null
-          duration: string | null
-          steps: string[]
-          tips: string[]
-          focus_points: string[]
-          materials: string[]
-          step_images: string[]
-          metadata: Json | null
           created_at: string
+          description: string | null
+          id: string
+          image_url: string
+          name: string
+          pattern_url: string | null
+          updated_at: string
+          user_id: string | null
         }
         Insert: {
-          id?: string
-          level?: string | null
-          focus?: string | null
-          title: string
-          description: string
-          difficulty?: string | null
-          duration?: string | null
-          steps?: string[]
-          tips?: string[]
-          focus_points?: string[]
-          materials?: string[]
-          step_images?: string[]
-          metadata?: Json | null
           created_at?: string
+          description?: string | null
+          id?: string
+          image_url: string
+          name: string
+          pattern_url?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Update: {
-          id?: string
-          level?: string | null
-          focus?: string | null
-          title?: string
-          description?: string
-          difficulty?: string | null
-          duration?: string | null
-          steps?: string[]
-          tips?: string[]
-          focus_points?: string[]
-          materials?: string[]
-          step_images?: string[]
-          metadata?: Json | null
           created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string
+          name?: string
+          pattern_url?: string | null
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
