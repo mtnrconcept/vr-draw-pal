@@ -175,26 +175,50 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     };
   }, []);
 
-  const loadReferenceImageData = async (dataUrl: string) => {
-    return new Promise<ImageData>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = image.width;
-        canvas.height = image.height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("Impossible d'initialiser le canvas"));
-          return;
-        }
-        ctx.drawImage(image, 0, 0);
-        const imageData = ctx.getImageData(0, 0, image.width, image.height);
-        resolve(imageData);
-      };
-      image.onerror = () =>
-        reject(new Error("Impossible de charger l'image de référence"));
-      image.src = dataUrl;
-    });
+  const loadReferenceImageData = async (source: string) => {
+    let objectUrl: string | null = null;
+
+    const loadImage = (src: string) =>
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.onload = () => resolve(image);
+        image.onerror = () =>
+          reject(new Error("Impossible de charger l'image de référence"));
+        image.src = src;
+      });
+
+    try {
+      const image = source.startsWith("data:")
+        ? await loadImage(source)
+        : await (async () => {
+            try {
+              const response = await fetch(source, { cache: "no-cache" });
+              if (!response.ok) {
+                throw new Error();
+              }
+              const blob = await response.blob();
+              objectUrl = URL.createObjectURL(blob);
+              return loadImage(objectUrl);
+            } catch {
+              throw new Error("Impossible de charger l'image de référence");
+            }
+          })();
+
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Impossible d'initialiser le canvas");
+      }
+      ctx.drawImage(image, 0, 0);
+      return ctx.getImageData(0, 0, image.width, image.height);
+    } finally {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    }
   };
 
   const startTracking = async () => {
