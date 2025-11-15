@@ -185,8 +185,20 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
           image.crossOrigin = "anonymous";
         }
         image.onload = () => resolve(image);
-        image.onerror = () =>
+        image.onerror = (e) => {
+          console.error("Erreur de chargement d'image:", e);
+          console.error("Source:", src?.substring(0, 100) + "...");
           reject(new Error("Impossible de charger l'image de référence"));
+        };
+        
+        // Validate data URL format
+        if (src.startsWith("data:")) {
+          if (!src.includes("base64,")) {
+            reject(new Error("Format de données base64 invalide"));
+            return;
+          }
+        }
+        
         image.src = src;
       });
 
