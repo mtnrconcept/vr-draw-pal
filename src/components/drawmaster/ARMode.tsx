@@ -402,6 +402,10 @@ export default function ARAnchorsMode({
   const stopTracking = useCallback(
     (options?: { silent?: boolean }) => {
       setTrackingActive(false);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
       trackerRef.current?.dispose();
       trackerRef.current = null;
       smoothingRef.current.reset();
@@ -504,7 +508,13 @@ export default function ARAnchorsMode({
 
         // 2) Récupérer la frame pour le tracker
         const frameImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const result = trackerRef.current!.trackFrame(frameImageData);
+        const tracker = trackerRef.current;
+        if (!tracker) {
+          animationFrameRef.current = null;
+          return;
+        }
+
+        const result = tracker.trackFrame(frameImageData);
 
         setMatchedPoints(result.matchedPoints);
         setTrackingStability(result.stability);
@@ -737,7 +747,11 @@ export default function ARAnchorsMode({
         }
       }
 
-      animationFrameRef.current = requestAnimationFrame(trackLoop);
+      if (trackerRef.current) {
+        animationFrameRef.current = requestAnimationFrame(trackLoop);
+      } else {
+        animationFrameRef.current = null;
+      }
     };
 
     animationFrameRef.current = requestAnimationFrame(trackLoop);
