@@ -40,9 +40,21 @@ interface ARAnchorsModeProps {
 class HomographySmoothing {
   private last: number[] | null = null;
 
-  smooth(h: number[]): number[] {
-    this.last = [...h];
-    return [...h];
+  smooth(h: number[], blend = 1): number[] {
+    const alpha = Math.min(Math.max(blend, 0), 1);
+
+    if (!this.last) {
+      this.last = [...h];
+      return [...h];
+    }
+
+    const smoothed = this.last.map((previous, index) => {
+      const target = h[index] ?? 0;
+      return previous * (1 - alpha) + target * alpha;
+    });
+
+    this.last = [...smoothed];
+    return [...smoothed];
   }
 
   reset() {
@@ -372,19 +384,27 @@ export default function ARAnchorsMode({
         setMatchedPoints(result.matchedPoints);
         setTrackingStability(result.stability);
 
-        const minPoints = Math.max(
+        const stablePointThreshold = Math.max(
           4,
-          Math.floor(configuredPoints.length * 0.6)
+          Math.floor(configuredPoints.length * 0.5)
+        );
+        const minimumContinuationPoints = Math.max(
+          4,
+          Math.floor(configuredPoints.length * 0.3)
         );
         const stabilityRatio = Math.max(
           0,
           Math.min(1, result.stability / 100)
         );
 
-        const trackingConfident =
+        const hasLiveHomography =
           result.isTracking &&
-          result.homography &&
-          result.matchedPoints >= minPoints &&
+          !!result.homography &&
+          result.matchedPoints >= minimumContinuationPoints;
+
+        const trackingConfident =
+          hasLiveHomography &&
+          result.matchedPoints >= stablePointThreshold &&
           result.stability >= 35;
 
         // Fonction utilitaire de rendu de l'overlay à partir d'une homographie
@@ -539,16 +559,16 @@ export default function ARAnchorsMode({
         };
 
         // 3) Tracking normal → lissage + mémorisation dernière homographie fiable
-        if (trackingConfident && result.homography) {
+        if (hasLiveHomography && result.homography) {
           try {
             const rawFinalH = multiplyHomographies(
               result.homography,
               overlayToReferenceHomography
             );
-            const finalH = smoothingRef.current.smooth(
-              rawFinalH,
-              stabilityRatio
-            );
+            const blend = trackingConfident
+              ? stabilityRatio
+              : Math.max(0.15, stabilityRatio * 0.5);
+            const finalH = smoothingRef.current.smooth(rawFinalH, blend);
             lastGoodHomographyRef.current = finalH;
             renderOverlayWithHomography(finalH);
           } catch (error) {
@@ -582,6 +602,13 @@ export default function ARAnchorsMode({
     overlayToReferenceHomography,
     showDebugPoints,
     overlayOpacity,
+    gridEnabled,
+    gridOpacity,
+    gridTileCount,
+    strobeEnabled,
+    strobeSpeed,
+    strobeMinOpacity,
+    strobeMaxOpacity,
   ]);
 
   const computeOverlayToReference = (
