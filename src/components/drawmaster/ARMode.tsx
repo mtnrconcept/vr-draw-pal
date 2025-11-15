@@ -7,6 +7,7 @@ import * as THREE from "three";
 import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
 import PointTrackingManager from "./PointTrackingManager";
 import ARWorkflowGuide from "./ARWorkflowGuide";
+import { TrackingConfiguration } from "@/hooks/useTrackingPoints";
 
 interface ARAnchorsModeProps {
   referenceImage: string | null;
@@ -25,7 +26,9 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const [trackingStability, setTrackingStability] = useState(0);
   const [matchedPoints, setMatchedPoints] = useState(0);
   const [configuredPoints, setConfiguredPoints] = useState<TrackingPoint[]>([]);
-  const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  const [trackingReferenceImageUrl, setTrackingReferenceImageUrl] = useState<string | null>(null);
+  const [overlayImageUrl, setOverlayImageUrl] = useState<string | null>(null);
+  const [overlayToReferenceHomography, setOverlayToReferenceHomography] = useState<number[] | null>(null);
   const [isInitializingTracking, setIsInitializingTracking] = useState(false);
 
   const threeRef = useRef<{
@@ -95,13 +98,27 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     threeRef.current = { scene, camera, renderer };
   };
 
+  const multiplyHomographies = (a: number[], b: number[]) => {
+    return [
+      a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
+      a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
+      a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
+      a[3] * b[0] + a[4] * b[3] + a[5] * b[6],
+      a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
+      a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
+      a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
+      a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
+      a[6] * b[2] + a[7] * b[5] + a[8] * b[8]
+    ];
+  };
+
   const updateReferencePlane = (homography: number[]) => {
     const { scene, referencePlane } = threeRef.current;
-    if (!scene || !referenceImageUrl) return;
+    if (!scene || !overlayImageUrl) return;
 
     if (!referencePlane) {
       const loader = new THREE.TextureLoader();
-      loader.load(referenceImageUrl, (texture) => {
+      loader.load(overlayImageUrl, (texture) => {
         const aspect = texture.image.width / texture.image.height;
         const geometry = new THREE.PlaneGeometry(2, 2 / aspect);
         const material = new THREE.MeshBasicMaterial({
@@ -118,12 +135,16 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     }
 
     if (referencePlane && homography) {
+      const targetHomography = overlayToReferenceHomography
+        ? multiplyHomographies(homography, overlayToReferenceHomography)
+        : homography;
+
       const matrix = new THREE.Matrix4();
       matrix.set(
-        homography[0], homography[1], 0, homography[2],
-        homography[3], homography[4], 0, homography[5],
+        targetHomography[0], targetHomography[1], 0, targetHomography[2],
+        targetHomography[3], targetHomography[4], 0, targetHomography[5],
         0, 0, 1, 0,
-        homography[6], homography[7], 0, homography[8]
+        targetHomography[6], targetHomography[7], 0, targetHomography[8]
       );
       referencePlane.matrix.copy(matrix);
       referencePlane.matrixAutoUpdate = false;
@@ -171,7 +192,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       return;
     }
 
-    if (!referenceImageUrl) {
+    if (!trackingReferenceImageUrl) {
       toast.error("Aucune image de référence disponible");
       return;
     }
@@ -187,7 +208,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
     try {
       setIsInitializingTracking(true);
-      const referenceImageData = await loadReferenceImageData(referenceImageUrl);
+      const referenceImageData = await loadReferenceImageData(trackingReferenceImageUrl);
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -262,7 +283,43 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     }
   };
 
-  const handleConfigurationReady = (refImage: string, points: TrackingPoint[]) => {
+  const computeOverlayToReference = (overlayPoints: TrackingPoint[], referencePoints: TrackingPoint[]) => {
+    if (!(window as any).cv) {
+      toast.error("OpenCV non disponible pour calculer l'alignement");
+      return null;
+    }
+
+    if (overlayPoints.length < 4 || referencePoints.length < 4) {
+      return null;
+    }
+
+    const cv = (window as any).cv;
+    let src: any | null = null;
+    let dst: any | null = null;
+    let transform: any | null = null;
+
+    try {
+      src = cv.matFromArray(overlayPoints.length, 1, cv.CV_32FC2, overlayPoints.flatMap(p => [p.x, p.y]));
+      dst = cv.matFromArray(referencePoints.length, 1, cv.CV_32FC2, referencePoints.flatMap(p => [p.x, p.y]));
+      transform = cv.getPerspectiveTransform(src, dst);
+
+      const data: number[] = [];
+      for (let i = 0; i < 9; i += 1) {
+        data.push(transform.doubleAt(Math.floor(i / 3), i % 3));
+      }
+      return data;
+    } catch (error) {
+      console.error("Perspective transform computation failed", error);
+      toast.error("Impossible de calculer l'alignement des ancres");
+      return null;
+    } finally {
+      transform?.delete();
+      src?.delete();
+      dst?.delete();
+    }
+  };
+
+  const handleConfigurationReady = (config: TrackingConfiguration) => {
     if (trackingActive) {
       setTrackingActive(false);
       trackerRef.current?.dispose();
@@ -283,11 +340,14 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       threeRef.current.referencePlane = undefined;
     }
 
-    setReferenceImageUrl(refImage);
-    setConfiguredPoints(points);
+    setTrackingReferenceImageUrl(config.referenceImage);
+    setConfiguredPoints(config.trackingPoints);
+    setOverlayImageUrl(config.overlayImage);
+    const transform = computeOverlayToReference(config.overlayAnchors, config.trackingPoints);
+    setOverlayToReferenceHomography(transform);
     setMatchedPoints(0);
     setTrackingStability(0);
-    toast.success(`Configuration prête avec ${points.length} points`);
+    toast.success(`Configuration prête avec ${config.trackingPoints.length} points`);
   };
 
   return (
@@ -353,7 +413,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
                 configuredPoints.length < 4 ||
                 trackingActive ||
                 isInitializingTracking ||
-                !referenceImageUrl
+                !trackingReferenceImageUrl
               }
             >
               {trackingActive
