@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { TrackingPoint } from "@/lib/opencv/tracker";
 
 interface TrackingCalibrationProps {
-  onComplete: (referenceImage: string, points: TrackingPoint[]) => void;
+  onComplete: (referenceImage: string, points: TrackingPoint[], name: string) => void;
   onCancel: () => void;
 }
 
@@ -139,7 +139,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     }
     
     if (capturedImage) {
-      onComplete(capturedImage, markedPoints);
+      onComplete(capturedImage, markedPoints, configName.trim());
       toast.success("Configuration sauvegardée !");
     }
   };
