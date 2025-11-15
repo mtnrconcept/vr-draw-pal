@@ -760,16 +760,21 @@ export default function ARAnchorsMode({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="opacity" className="text-sm">
-                      Opacité: {overlayOpacity[0]}%
+                      {strobeEnabled
+                        ? "Opacité contrôlée par le strobe"
+                        : `Opacité: ${overlayOpacity[0]}%`}
                     </Label>
                   </div>
                   <Slider
                     id="opacity"
                     value={overlayOpacity}
-                    onValueChange={setOverlayOpacity}
+                    onValueChange={(value) =>
+                      !strobeEnabled && setOverlayOpacity(value)
+                    }
                     min={0}
                     max={100}
                     step={5}
+                    disabled={strobeEnabled}
                   />
                 </div>
               </Card>
