@@ -41,6 +41,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   const [configName, setConfigName] = useState("");
   const [overlayImage, setOverlayImage] = useState<string | null>(null);
   const [overlayAnchors, setOverlayAnchors] = useState<TrackingPoint[]>([]);
+  const [maxPoints, setMaxPoints] = useState(4);
 
   useEffect(() => {
     if (step !== "anchor" || !overlayImage) return;
