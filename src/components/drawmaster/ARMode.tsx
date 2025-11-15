@@ -21,6 +21,13 @@ const toast = {
 interface ARAnchorsModeProps {
   referenceImage: string | null;
   ghostMentorEnabled?: boolean;
+  gridEnabled: boolean;
+  gridOpacity: number;
+  gridTileCount: number;
+  strobeEnabled: boolean;
+  strobeSpeed: number;
+  strobeMinOpacity: number;
+  strobeMaxOpacity: number;
 }
 
 // --- LISSAGE D'HOMOGRAPHIE HAUTE PRÉCISION ------------------------------
@@ -50,7 +57,16 @@ type WarpResources = {
   warpedCanvas: HTMLCanvasElement | null; // canvas tampon pour cv.imshow
 };
 
-export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
+export default function ARAnchorsMode({
+  referenceImage,
+  gridEnabled,
+  gridOpacity,
+  gridTileCount,
+  strobeEnabled,
+  strobeSpeed,
+  strobeMinOpacity,
+  strobeMaxOpacity,
+}: ARAnchorsModeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const trackerRef = useRef<OpenCVTracker | null>(null);
@@ -81,13 +97,13 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   );
   const [showDebugPoints, setShowDebugPoints] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState([70]);
-  const [strobeEnabled, setStrobeEnabled] = useState(false);
-  const [strobeSpeed, setStrobeSpeed] = useState([50]);
-  const [strobeMinOpacity, setStrobeMinOpacity] = useState([30]);
-  const [strobeMaxOpacity, setStrobeMaxOpacity] = useState([90]);
-  const [showGrid, setShowGrid] = useState(false);
-  const [gridSpacing, setGridSpacing] = useState([50]);
   const strobeAnimationRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!strobeEnabled) {
+      strobeAnimationRef.current = 0;
+    }
+  }, [strobeEnabled]);
 
   // Check if OpenCV is loaded
   useEffect(() => {
@@ -446,40 +462,42 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
           // Calculer l'opacité avec strobe si activé
           let currentOpacity = overlayOpacity[0] / 100;
           if (strobeEnabled) {
-            const speed = strobeSpeed[0] / 50; // Normaliser la vitesse
-            const minOpacity = strobeMinOpacity[0] / 100;
-            const maxOpacity = strobeMaxOpacity[0] / 100;
-            const range = maxOpacity - minOpacity;
-            
+            const speed = strobeSpeed;
+            const minOpacity = Math.min(strobeMinOpacity, strobeMaxOpacity) / 100;
+            const maxOpacity = Math.max(strobeMinOpacity, strobeMaxOpacity) / 100;
+            const range = Math.max(maxOpacity - minOpacity, 0);
+
             // Oscillation sinusoïdale
             strobeAnimationRef.current += 0.05 * speed;
             const oscillation = (Math.sin(strobeAnimationRef.current) + 1) / 2; // Entre 0 et 1
-            currentOpacity = minOpacity + (oscillation * range);
+            currentOpacity = range > 0 ? minOpacity + oscillation * range : minOpacity;
           }
-          
+
           ctx.globalAlpha = currentOpacity;
           ctx.globalCompositeOperation = "source-over";
           ctx.drawImage(warpedCanvas, 0, 0);
           ctx.restore();
 
           // Dessiner la grille si activée
-          if (showGrid) {
+          if (gridEnabled) {
             ctx.save();
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(Math.max(gridOpacity, 0), 100) / 100})`;
             ctx.lineWidth = 1;
-            
-            const spacing = gridSpacing[0];
-            
+
+            const tiles = Math.max(gridTileCount, 1);
+            const spacingX = canvas.width / tiles;
+            const spacingY = canvas.height / tiles;
+
             // Lignes verticales
-            for (let x = 0; x < canvas.width; x += spacing) {
+            for (let x = 0; x <= canvas.width; x += spacingX) {
               ctx.beginPath();
               ctx.moveTo(x, 0);
               ctx.lineTo(x, canvas.height);
               ctx.stroke();
             }
-            
+
             // Lignes horizontales
-            for (let y = 0; y < canvas.height; y += spacing) {
+            for (let y = 0; y <= canvas.height; y += spacingY) {
               ctx.beginPath();
               ctx.moveTo(0, y);
               ctx.lineTo(canvas.width, y);

@@ -20,13 +20,38 @@ import { toast } from "sonner";
 interface DrawingToolsProps {
   referenceImage: string | null;
   onImageSelect: (image: string | null) => void;
+  gridEnabled: boolean;
+  onGridEnabledChange: (enabled: boolean) => void;
+  gridOpacity: number;
+  onGridOpacityChange: (opacity: number) => void;
+  gridTileCount: number;
+  onGridTileCountChange: (count: number) => void;
+  strobeEnabled: boolean;
+  onStrobeEnabledChange: (enabled: boolean) => void;
+  strobeSpeed: number;
+  onStrobeSpeedChange: (speed: number) => void;
+  strobeMinOpacity: number;
+  strobeMaxOpacity: number;
+  onStrobeRangeChange: (min: number, max: number) => void;
 }
 
-const DrawingTools = ({ referenceImage, onImageSelect }: DrawingToolsProps) => {
-  const [gridEnabled, setGridEnabled] = useState(false);
-  const [gridOpacity, setGridOpacity] = useState(50);
-  const [strobeEnabled, setStrobeEnabled] = useState(false);
-  const [strobeSpeed, setStrobeSpeed] = useState(2);
+const DrawingTools = ({
+  referenceImage,
+  onImageSelect,
+  gridEnabled,
+  onGridEnabledChange,
+  gridOpacity,
+  onGridOpacityChange,
+  gridTileCount,
+  onGridTileCountChange,
+  strobeEnabled,
+  onStrobeEnabledChange,
+  strobeSpeed,
+  onStrobeSpeedChange,
+  strobeMinOpacity,
+  strobeMaxOpacity,
+  onStrobeRangeChange,
+}: DrawingToolsProps) => {
   const [contrast, setContrast] = useState(100);
   const [brightness, setBrightness] = useState(100);
   const [torchEnabled, setTorchEnabled] = useState(false);
@@ -104,7 +129,7 @@ const DrawingTools = ({ referenceImage, onImageSelect }: DrawingToolsProps) => {
           </div>
           <Switch
             checked={gridEnabled}
-            onCheckedChange={setGridEnabled}
+            onCheckedChange={onGridEnabledChange}
           />
         </div>
         {gridEnabled && (
@@ -112,12 +137,29 @@ const DrawingTools = ({ referenceImage, onImageSelect }: DrawingToolsProps) => {
             <Label className="text-xs">Opacité</Label>
             <Slider
               value={[gridOpacity]}
-              onValueChange={(value) => setGridOpacity(value[0])}
+              onValueChange={(value) => onGridOpacityChange(value[0])}
               min={0}
               max={100}
               step={1}
               className="mt-1"
             />
+            <span className="text-xs text-muted-foreground">{gridOpacity}%</span>
+            <div className="mt-3">
+              <Label className="text-xs">Nombre de carreaux</Label>
+              <Slider
+                value={[gridTileCount]}
+                onValueChange={(value) =>
+                  onGridTileCountChange(Math.round(value[0]))
+                }
+                min={2}
+                max={20}
+                step={1}
+                className="mt-1"
+              />
+              <span className="text-xs text-muted-foreground">
+                {gridTileCount} × {gridTileCount}
+              </span>
+            </div>
           </div>
         )}
       </Card>
@@ -131,7 +173,7 @@ const DrawingTools = ({ referenceImage, onImageSelect }: DrawingToolsProps) => {
           </div>
           <Switch
             checked={strobeEnabled}
-            onCheckedChange={setStrobeEnabled}
+            onCheckedChange={onStrobeEnabledChange}
           />
         </div>
         {strobeEnabled && (
@@ -139,13 +181,33 @@ const DrawingTools = ({ referenceImage, onImageSelect }: DrawingToolsProps) => {
             <Label className="text-xs">Vitesse (Hz)</Label>
             <Slider
               value={[strobeSpeed]}
-              onValueChange={(value) => setStrobeSpeed(value[0])}
+              onValueChange={(value) => onStrobeSpeedChange(value[0])}
               min={1}
               max={10}
               step={0.5}
               className="mt-1"
             />
             <span className="text-xs text-muted-foreground">{strobeSpeed} Hz</span>
+            <div className="mt-3">
+              <Label className="text-xs">Opacité minimale / maximale</Label>
+              <Slider
+                value={[strobeMinOpacity, strobeMaxOpacity]}
+                onValueChange={(value) =>
+                  onStrobeRangeChange(
+                    Math.round(Math.min(value[0], value[1])),
+                    Math.round(Math.max(value[0], value[1]))
+                  )
+                }
+                min={0}
+                max={100}
+                step={1}
+                className="mt-1"
+                minStepsBetweenThumbs={5}
+              />
+              <span className="text-xs text-muted-foreground">
+                {strobeMinOpacity}% – {strobeMaxOpacity}%
+              </span>
+            </div>
           </div>
         )}
       </Card>

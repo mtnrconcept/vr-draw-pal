@@ -8,15 +8,34 @@ import { Move, RotateCw, ZoomIn } from "lucide-react";
 interface ClassicModeProps {
   referenceImage: string | null;
   ghostMentorEnabled: boolean;
+  gridEnabled: boolean;
+  gridOpacity: number;
+  gridTileCount: number;
+  strobeEnabled: boolean;
+  strobeSpeed: number;
+  strobeMinOpacity: number;
+  strobeMaxOpacity: number;
 }
 
-const ClassicMode = ({ referenceImage, ghostMentorEnabled }: ClassicModeProps) => {
+const ClassicMode = ({
+  referenceImage,
+  ghostMentorEnabled,
+  gridEnabled,
+  gridOpacity,
+  gridTileCount,
+  strobeEnabled,
+  strobeSpeed,
+  strobeMinOpacity,
+  strobeMaxOpacity,
+}: ClassicModeProps) => {
   const [opacity, setOpacity] = useState(50);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [rotation, setRotation] = useState(0);
   const [scale, setScale] = useState(1);
   const canvasRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const strobePhaseRef = useRef(0);
+  const [dynamicOpacity, setDynamicOpacity] = useState(opacity / 100);
 
   useEffect(() => {
     // Initialize camera stream
@@ -43,6 +62,39 @@ const ClassicMode = ({ referenceImage, ghostMentorEnabled }: ClassicModeProps) =
     };
   }, []);
 
+  useEffect(() => {
+    if (!strobeEnabled) {
+      setDynamicOpacity(opacity / 100);
+      strobePhaseRef.current = 0;
+      return;
+    }
+
+    let frame: number;
+    const animate = () => {
+      const min = Math.min(strobeMinOpacity, strobeMaxOpacity) / 100;
+      const max = Math.max(strobeMinOpacity, strobeMaxOpacity) / 100;
+      const range = Math.max(max - min, 0);
+
+      strobePhaseRef.current += 0.05 * strobeSpeed;
+      const oscillation = (Math.sin(strobePhaseRef.current) + 1) / 2;
+      const value = range > 0 ? min + oscillation * range : min;
+      setDynamicOpacity(value);
+      frame = requestAnimationFrame(animate);
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [strobeEnabled, strobeSpeed, strobeMinOpacity, strobeMaxOpacity, opacity]);
+
+  useEffect(() => {
+    if (!strobeEnabled) {
+      setDynamicOpacity(opacity / 100);
+    }
+  }, [opacity, strobeEnabled]);
+
+  const tileCount = Math.max(gridTileCount, 1);
+  const gridCellSize = `calc(100% / ${tileCount})`;
+
   return (
     <div className="space-y-4">
       <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden">
@@ -59,7 +111,7 @@ const ClassicMode = ({ referenceImage, ghostMentorEnabled }: ClassicModeProps) =
         {referenceImage && (
           <div
             className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            style={{ opacity: opacity / 100 }}
+            style={{ opacity: dynamicOpacity }}
           >
             <img
               src={referenceImage}
@@ -70,6 +122,20 @@ const ClassicMode = ({ referenceImage, ghostMentorEnabled }: ClassicModeProps) =
               }}
             />
           </div>
+        )}
+
+        {gridEnabled && (
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              opacity: Math.min(Math.max(gridOpacity, 0), 100) / 100,
+              backgroundImage:
+                "linear-gradient(to right, rgba(255,255,255,0.9) 1px, transparent 1px)," +
+                "linear-gradient(to bottom, rgba(255,255,255,0.9) 1px, transparent 1px)",
+              backgroundSize: `${gridCellSize} ${gridCellSize}`,
+              backgroundRepeat: "repeat",
+            }}
+          />
         )}
 
         {ghostMentorEnabled && (

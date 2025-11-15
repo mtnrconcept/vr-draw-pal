@@ -12,6 +12,13 @@ const DrawMasterVR = () => {
   const [activeMode, setActiveMode] = useState<"classic" | "ar" | "vr">("classic");
   const [ghostMentorEnabled, setGhostMentorEnabled] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [gridEnabled, setGridEnabled] = useState(false);
+  const [gridOpacity, setGridOpacity] = useState(50);
+  const [gridTileCount, setGridTileCount] = useState(6);
+  const [strobeEnabled, setStrobeEnabled] = useState(false);
+  const [strobeSpeed, setStrobeSpeed] = useState(2);
+  const [strobeMinOpacity, setStrobeMinOpacity] = useState(30);
+  const [strobeMaxOpacity, setStrobeMaxOpacity] = useState(90);
 
   return (
     <div className="min-h-screen bg-background">
@@ -65,9 +72,25 @@ const DrawMasterVR = () => {
               </Button>
             </div>
 
-            <DrawingTools 
+            <DrawingTools
               referenceImage={referenceImage}
               onImageSelect={setReferenceImage}
+              gridEnabled={gridEnabled}
+              onGridEnabledChange={setGridEnabled}
+              gridOpacity={gridOpacity}
+              onGridOpacityChange={setGridOpacity}
+              gridTileCount={gridTileCount}
+              onGridTileCountChange={setGridTileCount}
+              strobeEnabled={strobeEnabled}
+              onStrobeEnabledChange={setStrobeEnabled}
+              strobeSpeed={strobeSpeed}
+              onStrobeSpeedChange={setStrobeSpeed}
+              strobeMinOpacity={strobeMinOpacity}
+              strobeMaxOpacity={strobeMaxOpacity}
+              onStrobeRangeChange={(min, max) => {
+                setStrobeMinOpacity(min);
+                setStrobeMaxOpacity(max);
+              }}
             />
           </Card>
 
@@ -78,11 +101,25 @@ const DrawMasterVR = () => {
                 <ClassicMode
                   referenceImage={referenceImage}
                   ghostMentorEnabled={ghostMentorEnabled}
+                  gridEnabled={gridEnabled}
+                  gridOpacity={gridOpacity}
+                  gridTileCount={gridTileCount}
+                  strobeEnabled={strobeEnabled}
+                  strobeSpeed={strobeSpeed}
+                  strobeMinOpacity={strobeMinOpacity}
+                  strobeMaxOpacity={strobeMaxOpacity}
                 />
               </TabsContent>
               <TabsContent value="ar" className="mt-0">
                 <ARMode
                   referenceImage={referenceImage}
+                  gridEnabled={gridEnabled}
+                  gridOpacity={gridOpacity}
+                  gridTileCount={gridTileCount}
+                  strobeEnabled={strobeEnabled}
+                  strobeSpeed={strobeSpeed}
+                  strobeMinOpacity={strobeMinOpacity}
+                  strobeMaxOpacity={strobeMaxOpacity}
                 />
               </TabsContent>
             </Tabs>
