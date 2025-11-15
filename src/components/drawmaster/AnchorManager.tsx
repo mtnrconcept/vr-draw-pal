@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -209,6 +210,10 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Créer une ancre personnalisée</DialogTitle>
+              <DialogDescription>
+                Capturez ou importez une image détaillée pour générer une ancre utilisable en
+                réalité augmentée.
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
