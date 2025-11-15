@@ -2,7 +2,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Plus, Settings } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import TrackingCalibration from "./TrackingCalibration";
 import { useTrackingPoints } from "@/hooks/useTrackingPoints";
 import { TrackingPoint } from "@/lib/opencv/tracker";
@@ -81,6 +87,13 @@ export default function PointTrackingManager({ onConfigurationReady }: PointTrac
 
       <Dialog open={isCalibrating} onOpenChange={setIsCalibrating}>
         <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Configurer le suivi des points</DialogTitle>
+            <DialogDescription>
+              Calibrez les points de référence pour permettre le suivi AR précis de votre
+              dessin.
+            </DialogDescription>
+          </DialogHeader>
           <TrackingCalibration
             onComplete={handleCalibrationComplete}
             onCancel={() => setIsCalibrating(false)}
