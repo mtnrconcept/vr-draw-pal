@@ -10,7 +10,7 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-x-hidden">
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-1/4 top-16 h-72 w-72 -translate-x-1/2 rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute right-1/5 top-24 h-80 w-80 rounded-full bg-secondary/20 blur-3xl" />
