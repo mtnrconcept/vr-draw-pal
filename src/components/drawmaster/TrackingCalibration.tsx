@@ -32,7 +32,6 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageCanvasRef = useRef<HTMLCanvasElement>(null);
-  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const videoOverlayCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [step, setStep] = useState<CalibrationStep>("instructions");
@@ -43,13 +42,10 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   const [configName, setConfigName] = useState("");
   const [overlayImage, setOverlayImage] = useState<string | null>(null);
   const [overlayAnchors, setOverlayAnchors] = useState<TrackingPoint[]>([]);
-  const [maxPoints, setMaxPoints] = useState(4);
   const [draggingAnchorId, setDraggingAnchorId] = useState<string | null>(null);
   const [videoAnchorRatios, setVideoAnchorRatios] = useState<
     { id: string; label: string; ratioX: number; ratioY: number }[]
   >([]);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [anchorPlacementMode, setAnchorPlacementMode] = useState<"manual" | "auto">("manual");
 
   const handleOverlayUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -61,9 +57,19 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     reader.onload = () => {
       const result = reader.result as string;
       setOverlayImage(result);
-      setOverlayAnchors([]);
       setVideoAnchorRatios([]);
       setMarkedPoints([]);
+      const img = new Image();
+      img.onload = () => {
+        const anchors: TrackingPoint[] = [
+          { id: "anchor_top_left", x: 0, y: 0, label: "Ancre 1" },
+          { id: "anchor_top_right", x: img.width, y: 0, label: "Ancre 2" },
+          { id: "anchor_bottom_left", x: 0, y: img.height, label: "Ancre 3" },
+          { id: "anchor_bottom_right", x: img.width, y: img.height, label: "Ancre 4" }
+        ];
+        setOverlayAnchors(anchors);
+      };
+      img.src = result;
       setStep("video-capture");
       toast.success("Image de référence chargée. Capturez maintenant votre feuille.");
     };
@@ -73,44 +79,21 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     reader.readAsDataURL(file);
   };
 
-  const redrawOverlayCanvas = useCallback(
-    (anchors: TrackingPoint[]) => {
-      const canvas = overlayCanvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx || !overlayImage) return;
+  const getDefaultVideoAnchors = useCallback(() => {
+    const baseAnchors = [
+      { id: "anchor_top_left", label: "Ancre 1", ratioX: 0, ratioY: 0 },
+      { id: "anchor_top_right", label: "Ancre 2", ratioX: 1, ratioY: 0 },
+      { id: "anchor_bottom_left", label: "Ancre 3", ratioX: 0, ratioY: 1 },
+      { id: "anchor_bottom_right", label: "Ancre 4", ratioX: 1, ratioY: 1 }
+    ];
 
-      const img = new Image();
-      img.onload = () => {
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-
-        anchors.forEach((point, idx) => {
-          ctx.beginPath();
-          ctx.arc(point.x, point.y, 12, 0, 2 * Math.PI);
-          ctx.fillStyle = "rgba(59, 130, 246, 0.7)";
-          ctx.fill();
-          ctx.strokeStyle = "#3b82f6";
-          ctx.lineWidth = 3;
-          ctx.stroke();
-
-          ctx.fillStyle = "white";
-          ctx.font = "bold 16px sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText((idx + 1).toString(), point.x, point.y);
-        });
-      };
-      img.src = overlayImage;
-    },
-    [overlayImage]
-  );
-
-  useEffect(() => {
-    if (step !== "anchor" || !overlayImage) return;
-    redrawOverlayCanvas(overlayAnchors);
-  }, [overlayAnchors, overlayImage, redrawOverlayCanvas, step]);
+    return baseAnchors.map(anchor => {
+      const matchingOverlayAnchor = overlayAnchors.find(item => item.id === anchor.id);
+      return matchingOverlayAnchor
+        ? { ...anchor, label: matchingOverlayAnchor.label ?? anchor.label }
+        : anchor;
+    });
+  }, [overlayAnchors]);
 
   const redrawVideoCanvas = useCallback(
     (ratios: { id: string; label: string; ratioX: number; ratioY: number }[] = videoAnchorRatios) => {
@@ -154,6 +137,19 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     redrawVideoCanvas();
   }, [videoCaptureImage, redrawVideoCanvas, step]);
 
+  const resetVideoAnchors = useCallback(() => {
+    const defaultAnchors = getDefaultVideoAnchors();
+    setVideoAnchorRatios(defaultAnchors);
+    redrawVideoCanvas(defaultAnchors);
+  }, [getDefaultVideoAnchors, redrawVideoCanvas]);
+
+  useEffect(() => {
+    if (step !== "anchor" || !videoCaptureImage) return;
+    if (videoAnchorRatios.length !== 4) {
+      resetVideoAnchors();
+    }
+  }, [resetVideoAnchors, step, videoAnchorRatios.length, videoCaptureImage]);
+
   const getCanvasCoordinates = (
     canvas: HTMLCanvasElement,
     event: React.MouseEvent | React.PointerEvent
@@ -166,37 +162,6 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     const y = (event.clientY - rect.top) * scaleY;
 
     return { x, y };
-  };
-
-  const handleOverlayClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (overlayAnchors.length >= 4) {
-      toast.warning("Les 4 points d'ancrage sont déjà placés");
-      return;
-    }
-
-    const canvas = overlayCanvasRef.current;
-    if (!canvas) return;
-
-    const { x, y } = getCanvasCoordinates(canvas, e);
-
-    const ratioX = canvas.width ? x / canvas.width : 0;
-    const ratioY = canvas.height ? y / canvas.height : 0;
-
-    const newAnchor: TrackingPoint = {
-      id: `anchor_${Date.now()}`,
-      x,
-      y,
-      label: `Ancre ${overlayAnchors.length + 1}`
-    };
-
-    const updatedAnchors = [...overlayAnchors, newAnchor];
-    setOverlayAnchors(updatedAnchors);
-    redrawOverlayCanvas(updatedAnchors);
-
-    setVideoAnchorRatios(prev => [
-      ...prev,
-      { id: newAnchor.id, label: newAnchor.label, ratioX, ratioY }
-    ]);
   };
 
   const handleVideoPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -248,13 +213,6 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
 
   const handleVideoPointerLeave = () => {
     setDraggingAnchorId(null);
-  };
-
-  const removeLastAnchor = () => {
-    const updatedAnchors = overlayAnchors.slice(0, -1);
-    setOverlayAnchors(updatedAnchors);
-    redrawOverlayCanvas(updatedAnchors);
-    setVideoAnchorRatios(prev => prev.slice(0, -1));
   };
 
   const startCamera = useCallback(async () => {
@@ -326,70 +284,6 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     stopCameraStream();
     setStep("anchor");
     toast.success("Vidéo capturée ! Placez maintenant les points d'ancrage.");
-  };
-
-  const detectMarkersAutomatically = async () => {
-    setAnchorPlacementMode("auto");
-    const canvas = overlayCanvasRef.current;
-    if (!canvas || !overlayImage) {
-      toast.error("Aucune image à analyser");
-      return;
-    }
-
-    setIsDetecting(true);
-    toast.success("Détection automatique en cours...");
-
-    try {
-      // Attendre un peu pour que le message s'affiche
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Impossible d'obtenir le contexte canvas");
-
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // Utiliser la détection automatique d'OpenCV
-      const { OpenCVTracker } = await import("@/lib/opencv/tracker");
-      const detectedMarkers = OpenCVTracker.detectMarkers(imageData);
-
-      if (detectedMarkers.length === 0) {
-        toast.warning("Aucun marqueur détecté. Dessinez 4 marqueurs noirs bien visibles.");
-        setIsDetecting(false);
-        return;
-      }
-
-      if (detectedMarkers.length < 4) {
-        toast.warning(`Seulement ${detectedMarkers.length} marqueur(s) détecté(s). 4 marqueurs sont recommandés.`);
-      }
-
-      // Mettre à jour les ancres
-      setOverlayAnchors(detectedMarkers);
-      redrawOverlayCanvas(detectedMarkers);
-
-      // Créer les ratios pour la vidéo
-      const ratios = detectedMarkers.map(marker => ({
-        id: marker.id,
-        label: marker.label || "Point",
-        ratioX: marker.x / canvas.width,
-        ratioY: marker.y / canvas.height
-      }));
-      setVideoAnchorRatios(ratios);
-
-      toast.success(`${detectedMarkers.length} marqueur(s) détecté(s) automatiquement !`);
-    } catch (error) {
-      console.error("Erreur de détection:", error);
-      toast.error("Erreur lors de la détection automatique");
-    } finally {
-      setIsDetecting(false);
-    }
-  };
-
-  const enableManualPlacement = () => {
-    if (isDetecting) return;
-    setAnchorPlacementMode("manual");
-    toast.success(
-      "Placement manuel activé. Cliquez sur l'image de référence pour ajouter ou ajuster les ancres."
-    );
   };
 
   const stopCameraStream = () => {
@@ -562,7 +456,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
           {step === "upload" && "Sélectionnez l'image de référence à projeter sur votre feuille."}
           {step === "video-capture" && "Positionnez votre feuille avec les 4 marqueurs visibles et capturez l'image."}
           {step === "anchor" &&
-            "Placez les ancres sur l'image de référence (gauche) puis ajustez leur position sur la capture de votre feuille (droite) pour qu'elles correspondent aux marqueurs physiques."}
+            "Placez les ancres directement sur la capture de votre feuille afin qu'elles correspondent à vos marqueurs physiques."}
           {step === "capture" && "Cadrez votre feuille avec la caméra puis capturez-la pour enregistrer les points physiques."}
           {step === "review" && "Vérifiez l'alignement final puis validez la configuration."}
         </p>
@@ -693,81 +587,41 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
 
       {step === "anchor" && overlayImage && videoCaptureImage && (
         <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <Button
-                  onClick={detectMarkersAutomatically}
-                  disabled={isDetecting}
-                  variant={anchorPlacementMode === "auto" ? "default" : "secondary"}
-                >
-                  {isDetecting ? "Détection en cours..." : "Auto detection"}
-                </Button>
-                <Button
-                  onClick={enableManualPlacement}
-                  variant={anchorPlacementMode === "manual" ? "default" : "outline"}
-                  disabled={isDetecting}
-                >
-                  Placement manuel
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground mb-2">
-                {anchorPlacementMode === "manual"
-                  ? "Cliquez sur l'image pour placer les points d'ancrage virtuels dans l'ordre indiqué."
-                  : "Utilisez l'auto détection pour placer automatiquement les ancres, puis ajustez-les si nécessaire."}
-              </p>
-              <div className="space-y-2">
-                <div className="relative w-full rounded-lg overflow-hidden border border-border">
-                  <canvas
-                    ref={overlayCanvasRef}
-                    onClick={handleOverlayClick}
-                    className="w-full cursor-crosshair"
-                  />
-                </div>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-2">
-                Ajustez les ancres en les faisant glisser sur l'image capturée pour les aligner sur vos marqueurs physiques.
-              </p>
-              <div className="relative w-full rounded-lg overflow-hidden border border-border bg-black">
-                <canvas
-                  ref={videoOverlayCanvasRef}
-                  className="w-full cursor-move"
-                  onPointerDown={handleVideoPointerDown}
-                  onPointerMove={handleVideoPointerMove}
-                  onPointerUp={handleVideoPointerUp}
-                  onPointerLeave={handleVideoPointerLeave}
-                />
-              </div>
-            </div>
+          <p className="text-xs text-muted-foreground">
+            Les quatre ancres sont positionnées automatiquement sur les coins de votre feuille. Faites-les glisser
+            directement sur l'image capturée pour les aligner précisément avec vos points de tracking.
+          </p>
+          <div className="relative w-full rounded-lg overflow-hidden border border-border bg-black">
+            <canvas
+              ref={videoOverlayCanvasRef}
+              className="w-full cursor-move"
+              onPointerDown={handleVideoPointerDown}
+              onPointerMove={handleVideoPointerMove}
+              onPointerUp={handleVideoPointerUp}
+              onPointerLeave={handleVideoPointerLeave}
+            />
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Placez les points dans l'ordre : haut gauche → haut droite → bas droite → bas gauche.</span>
-            <span>{overlayAnchors.length}/4</span>
+            <span>Ordre des points : 1 = haut gauche, 2 = haut droite, 3 = bas gauche, 4 = bas droite.</span>
+            <span>{videoAnchorRatios.length}/4</span>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={removeLastAnchor}
-              disabled={overlayAnchors.length === 0}
-            >
+            <Button variant="outline" onClick={resetVideoAnchors}>
               <Undo className="w-4 h-4 mr-2" />
-              Retirer le dernier
+              Réinitialiser les ancres
             </Button>
             <Button
               onClick={() => setStep("capture")}
-              disabled={overlayAnchors.length !== maxPoints || videoAnchorRatios.length !== overlayAnchors.length}
+              disabled={videoAnchorRatios.length !== 4}
               className="flex-1"
             >
               <Upload className="w-4 h-4 mr-2" />
               Continuer vers la capture finale
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setVideoCaptureImage(null);
-                setOverlayAnchors([]);
                 setVideoAnchorRatios([]);
                 setStep("video-capture");
               }}
