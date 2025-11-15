@@ -432,6 +432,24 @@ export class OpenCVTracker {
     }
 
     // Fallback template matching (pour les points qui ont échoué en optical flow)
+    if (this.lastHomography) {
+      for (let idx = 0; idx < this.referencePoints.length; idx += 1) {
+        if (successfulIdx.has(idx)) {
+          continue;
+        }
+
+        const predicted = this.applyHomographyToPoint(
+          this.lastHomography,
+          this.referencePoints[idx].x,
+          this.referencePoints[idx].y
+        );
+
+        if (predicted) {
+          this.lastPositions[idx] = predicted;
+        }
+      }
+    }
+
     for (let idx = 0; idx < this.templates.length; idx += 1) {
       if (successfulIdx.has(idx)) {
         continue;
@@ -472,6 +490,43 @@ export class OpenCVTracker {
             dstY: match.y,
             score: match.score
           };
+          correspondences.push(correspondence);
+          correspondenceMap.set(idx, correspondence);
+          successfulIdx.add(idx);
+        }
+      }
+    }
+
+    // Tentative de réancrage rapide des ancres critiques en se basant
+    // sur la dernière homographie fiable.
+    if (this.lastHomography) {
+      for (const idx of this.anchorIndices) {
+        if (successfulIdx.has(idx) || correspondenceMap.has(idx)) {
+          continue;
+        }
+
+        const predicted = this.applyHomographyToPoint(
+          this.lastHomography,
+          this.referencePoints[idx].x,
+          this.referencePoints[idx].y
+        );
+
+        if (!predicted) {
+          continue;
+        }
+
+        this.lastPositions[idx] = predicted;
+        const match = this.matchTemplateAtIndex(gray, idx, 1.5);
+        if (match) {
+          const correspondence = {
+            idx,
+            refX: this.referencePoints[idx].x,
+            refY: this.referencePoints[idx].y,
+            dstX: match.x,
+            dstY: match.y,
+            score: match.score,
+          };
+
           correspondences.push(correspondence);
           correspondenceMap.set(idx, correspondence);
           successfulIdx.add(idx);
