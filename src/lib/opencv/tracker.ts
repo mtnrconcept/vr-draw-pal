@@ -27,6 +27,7 @@ export class OpenCVTracker {
   private referencePoints: TrackingPoint[] = [];
   private templates: TemplateInfo[] = [];
   private lastPositions: { x: number; y: number }[] = [];
+  private prevGray: any | null = null;
   private initialized = false;
 
   constructor() {
@@ -50,6 +51,10 @@ export class OpenCVTracker {
     this.referencePoints = points.map(point => ({ ...point }));
     this.templates = [];
     this.lastPositions = points.map(point => ({ x: point.x, y: point.y }));
+    if (this.prevGray) {
+      this.prevGray.delete();
+      this.prevGray = null;
+    }
 
     const minDim = Math.min(gray.cols, gray.rows);
     const baseTemplateSize = Math.max(24, Math.min(120, Math.round(minDim * 0.08)));
@@ -84,6 +89,79 @@ export class OpenCVTracker {
     this.initialized = true;
   }
 
+  private matchTemplateAtIndex(
+    gray: any,
+    idx: number,
+    searchScale = 1
+  ): { x: number; y: number; score: number } | null {
+    const template = this.templates[idx];
+    const lastPosition = this.lastPositions[idx];
+
+    const baseRadius = Math.max(template.width, template.height);
+    const searchRadius = Math.min(
+      Math.max(32, Math.round(baseRadius * 1.2 * searchScale)),
+      Math.max(gray.cols, gray.rows)
+    );
+
+    const predictedTopLeftX =
+      lastPosition.x - template.width / 2 - template.offsetX;
+    const predictedTopLeftY =
+      lastPosition.y - template.height / 2 - template.offsetY;
+
+    let searchX = Math.round(predictedTopLeftX - searchRadius);
+    let searchY = Math.round(predictedTopLeftY - searchRadius);
+    let searchW = template.width + searchRadius * 2;
+    let searchH = template.height + searchRadius * 2;
+
+    if (searchX < 0) {
+      searchW += searchX;
+      searchX = 0;
+    }
+    if (searchY < 0) {
+      searchH += searchY;
+      searchY = 0;
+    }
+    if (searchX + searchW > gray.cols) {
+      searchW = gray.cols - searchX;
+    }
+    if (searchY + searchH > gray.rows) {
+      searchH = gray.rows - searchY;
+    }
+
+    if (searchW < template.width || searchH < template.height) {
+      return null;
+    }
+
+    const rect = new this.cv.Rect(searchX, searchY, searchW, searchH);
+    const roi = gray.roi(rect);
+    const resultCols = searchW - template.width + 1;
+    const resultRows = searchH - template.height + 1;
+
+    if (resultCols <= 0 || resultRows <= 0) {
+      roi.delete();
+      return null;
+    }
+
+    const result = new this.cv.Mat();
+    this.cv.matchTemplate(roi, template.mat, result, this.cv.TM_CCOEFF_NORMED);
+    const minMax = this.cv.minMaxLoc(result);
+    result.delete();
+    roi.delete();
+
+    if (minMax.maxVal <= 0.5) {
+      return null;
+    }
+
+    const matchTopLeftX = searchX + minMax.maxLoc.x;
+    const matchTopLeftY = searchY + minMax.maxLoc.y;
+    const matchedX =
+      matchTopLeftX + template.width / 2 + template.offsetX;
+    const matchedY =
+      matchTopLeftY + template.height / 2 + template.offsetY;
+
+    return { x: matchedX, y: matchedY, score: minMax.maxVal };
+  }
+
   trackFrame(frameData: ImageData): TrackingResult {
     if (!this.initialized || this.templates.length === 0) {
       return { isTracking: false, homography: null, matchedPoints: 0, stability: 0 };
@@ -97,72 +175,113 @@ export class OpenCVTracker {
     const dstPoints: number[] = [];
     let matchedPoints = 0;
     let stabilitySum = 0;
+    const successfulIdx = new Set<number>();
 
-    this.templates.forEach((template, idx) => {
-      const lastPosition = this.lastPositions[idx];
-      const baseRadius = Math.max(template.width, template.height);
-      const searchRadius = Math.min(
-        Math.max(40, Math.round(baseRadius * 1.5)),
-        Math.max(gray.cols, gray.rows)
+    const prevGray = this.prevGray;
+    if (prevGray) {
+      const prevPts = new this.cv.Mat(this.lastPositions.length, 1, this.cv.CV_32FC2);
+      const prevPtsData = prevPts.data32F;
+      this.lastPositions.forEach((pos, idx) => {
+        prevPtsData[idx * 2] = pos.x;
+        prevPtsData[idx * 2 + 1] = pos.y;
+      });
+
+      const nextPts = new this.cv.Mat();
+      const status = new this.cv.Mat();
+      const err = new this.cv.Mat();
+
+      const winSize = new this.cv.Size(31, 31);
+      const maxLevel = 3;
+      const criteria = new this.cv.TermCriteria(
+        this.cv.TermCriteria_EPS | this.cv.TermCriteria_COUNT,
+        30,
+        0.01
       );
 
-      const predictedTopLeftX = lastPosition.x - template.width / 2 - template.offsetX;
-      const predictedTopLeftY = lastPosition.y - template.height / 2 - template.offsetY;
+      this.cv.calcOpticalFlowPyrLK(
+        prevGray,
+        gray,
+        prevPts,
+        nextPts,
+        status,
+        err,
+        winSize,
+        maxLevel,
+        criteria
+      );
 
-      let searchX = Math.round(predictedTopLeftX - searchRadius);
-      let searchY = Math.round(predictedTopLeftY - searchRadius);
-      let searchW = template.width + searchRadius * 2;
-      let searchH = template.height + searchRadius * 2;
+      const statusData = status.data;
+      const nextData = nextPts.data32F;
+      const errData = err.data32F;
 
-      if (searchX < 0) {
-        searchW += searchX;
-        searchX = 0;
+      for (let idx = 0; idx < this.lastPositions.length; idx += 1) {
+        if (statusData[idx] === 1) {
+          const x = nextData[idx * 2];
+          const y = nextData[idx * 2 + 1];
+          if (Number.isFinite(x) && Number.isFinite(y)) {
+            if (x >= 0 && y >= 0 && x < gray.cols && y < gray.rows) {
+              this.lastPositions[idx] = { x, y };
+              const stabilityScore = Math.max(
+                0,
+                Math.min(1, 1 - (errData[idx] || 0) / 50)
+              );
+              srcPoints.push(
+                this.referencePoints[idx].x,
+                this.referencePoints[idx].y
+              );
+              dstPoints.push(x, y);
+              matchedPoints += 1;
+              stabilitySum += stabilityScore;
+              successfulIdx.add(idx);
+            }
+          }
+        }
       }
-      if (searchY < 0) {
-        searchH += searchY;
-        searchY = 0;
-      }
-      if (searchX + searchW > gray.cols) {
-        searchW = gray.cols - searchX;
-      }
-      if (searchY + searchH > gray.rows) {
-        searchH = gray.rows - searchY;
-      }
 
-      if (searchW < template.width || searchH < template.height) {
-        return;
-      }
+      prevPts.delete();
+      nextPts.delete();
+      status.delete();
+      err.delete();
+      // TermCriteria and Size are lightweight JS objects in OpenCV.js (no delete)
+    }
 
-      const rect = new this.cv.Rect(searchX, searchY, searchW, searchH);
-      const roi = gray.roi(rect);
-      const resultCols = searchW - template.width + 1;
-      const resultRows = searchH - template.height + 1;
-
-      if (resultCols <= 0 || resultRows <= 0) {
-        roi.delete();
-        return;
+    // Fallback template matching for missing points or initial frame
+    for (let idx = 0; idx < this.templates.length; idx += 1) {
+      if (successfulIdx.has(idx)) {
+        continue;
       }
 
-      const result = new this.cv.Mat();
-      this.cv.matchTemplate(roi, template.mat, result, this.cv.TM_CCOEFF_NORMED);
-      const minMax = this.cv.minMaxLoc(result);
-
-      if (minMax.maxVal > 0.5) {
-        const matchTopLeftX = searchX + minMax.maxLoc.x;
-        const matchTopLeftY = searchY + minMax.maxLoc.y;
-        const matchedX = matchTopLeftX + template.width / 2 + template.offsetX;
-        const matchedY = matchTopLeftY + template.height / 2 + template.offsetY;
-
-        this.lastPositions[idx] = { x: matchedX, y: matchedY };
+      const match = this.matchTemplateAtIndex(gray, idx, prevGray ? 1 : 1.5);
+      if (match) {
+        this.lastPositions[idx] = { x: match.x, y: match.y };
         srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
-        dstPoints.push(matchedX, matchedY);
+        dstPoints.push(match.x, match.y);
         matchedPoints += 1;
-        stabilitySum += minMax.maxVal;
+        stabilitySum += match.score;
+        successfulIdx.add(idx);
       }
+    }
 
-      roi.delete();
-      result.delete();
-    });
+    if (matchedPoints < 4) {
+      for (let idx = 0; idx < this.templates.length; idx += 1) {
+        if (successfulIdx.has(idx)) {
+          continue;
+        }
+
+        const match = this.matchTemplateAtIndex(gray, idx, 2.5);
+        if (match) {
+          this.lastPositions[idx] = { x: match.x, y: match.y };
+          srcPoints.push(
+            this.referencePoints[idx].x,
+            this.referencePoints[idx].y
+          );
+          dstPoints.push(match.x, match.y);
+          matchedPoints += 1;
+          stabilitySum += match.score;
+          successfulIdx.add(idx);
+        }
+      }
+    }
 
     let homography: number[] | null = null;
     let stability = 0;
@@ -189,6 +308,11 @@ export class OpenCVTracker {
       dstMat.delete();
     }
 
+    if (this.prevGray) {
+      this.prevGray.delete();
+    }
+    this.prevGray = gray.clone();
+
     frame.delete();
     gray.delete();
 
@@ -205,6 +329,10 @@ export class OpenCVTracker {
     this.templates = [];
     this.referencePoints = [];
     this.lastPositions = [];
+    if (this.prevGray) {
+      this.prevGray.delete();
+      this.prevGray = null;
+    }
     this.initialized = false;
   }
 
