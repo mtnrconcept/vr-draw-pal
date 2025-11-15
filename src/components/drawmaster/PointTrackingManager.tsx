@@ -15,9 +15,10 @@ export default function PointTrackingManager({ onConfigurationReady }: PointTrac
   const [isCalibrating, setIsCalibrating] = useState(false);
   const { configurations, currentConfig, saveConfiguration, loadConfiguration } = useTrackingPoints();
 
-  const handleCalibrationComplete = (referenceImage: string, points: TrackingPoint[]) => {
-    const config = saveConfiguration(`Config ${configurations.length + 1}`, referenceImage);
-    onConfigurationReady(referenceImage, points);
+  const handleCalibrationComplete = (referenceImage: string, points: TrackingPoint[], name: string) => {
+    const configName = name || `Config ${configurations.length + 1}`;
+    const config = saveConfiguration(configName, referenceImage, points);
+    onConfigurationReady(referenceImage, config.points);
     setIsCalibrating(false);
   };
 
