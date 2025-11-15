@@ -178,10 +178,12 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const loadReferenceImageData = async (source: string) => {
     let objectUrl: string | null = null;
 
-    const loadImage = (src: string) =>
+    const loadImage = (src: string, useCors: boolean) =>
       new Promise<HTMLImageElement>((resolve, reject) => {
         const image = new Image();
-        image.crossOrigin = "anonymous";
+        if (useCors) {
+          image.crossOrigin = "anonymous";
+        }
         image.onload = () => resolve(image);
         image.onerror = () =>
           reject(new Error("Impossible de charger l'image de référence"));
@@ -190,7 +192,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
     try {
       const image = source.startsWith("data:")
-        ? await loadImage(source)
+        ? await loadImage(source, false)
         : await (async () => {
             try {
               const response = await fetch(source, { cache: "no-cache" });
@@ -199,7 +201,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
               }
               const blob = await response.blob();
               objectUrl = URL.createObjectURL(blob);
-              return loadImage(objectUrl);
+              return loadImage(objectUrl, true);
             } catch {
               throw new Error("Impossible de charger l'image de référence");
             }
