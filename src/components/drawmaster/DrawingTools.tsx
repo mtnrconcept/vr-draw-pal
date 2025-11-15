@@ -32,7 +32,8 @@ interface DrawingToolsProps {
   onStrobeSpeedChange: (speed: number) => void;
   strobeMinOpacity: number;
   strobeMaxOpacity: number;
-  onStrobeRangeChange: (min: number, max: number) => void;
+  onStrobeMinOpacityChange: (min: number) => void;
+  onStrobeMaxOpacityChange: (max: number) => void;
 }
 
 const DrawingTools = ({
@@ -50,7 +51,8 @@ const DrawingTools = ({
   onStrobeSpeedChange,
   strobeMinOpacity,
   strobeMaxOpacity,
-  onStrobeRangeChange,
+  onStrobeMinOpacityChange,
+  onStrobeMaxOpacityChange,
 }: DrawingToolsProps) => {
   const [contrast, setContrast] = useState(100);
   const [brightness, setBrightness] = useState(100);
@@ -188,25 +190,43 @@ const DrawingTools = ({
               className="mt-1"
             />
             <span className="text-xs text-muted-foreground">{strobeSpeed} Hz</span>
-            <div className="mt-3">
-              <Label className="text-xs">Opacité minimale / maximale</Label>
-              <Slider
-                value={[strobeMinOpacity, strobeMaxOpacity]}
-                onValueChange={(value) =>
-                  onStrobeRangeChange(
-                    Math.round(Math.min(value[0], value[1])),
-                    Math.round(Math.max(value[0], value[1]))
-                  )
-                }
-                min={0}
-                max={100}
-                step={1}
-                className="mt-1"
-                minStepsBetweenThumbs={5}
-              />
-              <span className="text-xs text-muted-foreground">
-                {strobeMinOpacity}% – {strobeMaxOpacity}%
-              </span>
+            <div className="mt-3 space-y-3">
+              <div>
+                <Label className="text-xs">Opacité minimale</Label>
+                <Slider
+                  value={[strobeMinOpacity]}
+                  onValueChange={(value) =>
+                    onStrobeMinOpacityChange(
+                      Math.min(Math.round(value[0]), strobeMaxOpacity)
+                    )
+                  }
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="mt-1"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {strobeMinOpacity}%
+                </span>
+              </div>
+              <div>
+                <Label className="text-xs">Opacité maximale</Label>
+                <Slider
+                  value={[strobeMaxOpacity]}
+                  onValueChange={(value) =>
+                    onStrobeMaxOpacityChange(
+                      Math.max(Math.round(value[0]), strobeMinOpacity)
+                    )
+                  }
+                  min={0}
+                  max={100}
+                  step={1}
+                  className="mt-1"
+                />
+                <span className="text-xs text-muted-foreground">
+                  {strobeMaxOpacity}%
+                </span>
+              </div>
             </div>
           </div>
         )}

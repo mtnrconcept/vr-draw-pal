@@ -100,10 +100,12 @@ export default function ARAnchorsMode({
   const strobeAnimationRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!strobeEnabled) {
+    if (strobeEnabled) {
+      strobeAnimationRef.current = -Math.PI / 2;
+    } else {
       strobeAnimationRef.current = 0;
     }
-  }, [strobeEnabled]);
+  }, [strobeEnabled, strobeMinOpacity, strobeMaxOpacity]);
 
   // Check if OpenCV is loaded
   useEffect(() => {
@@ -468,9 +470,9 @@ export default function ARAnchorsMode({
             const range = Math.max(maxOpacity - minOpacity, 0);
 
             // Oscillation sinusoïdale
-            strobeAnimationRef.current += 0.05 * speed;
             const oscillation = (Math.sin(strobeAnimationRef.current) + 1) / 2; // Entre 0 et 1
             currentOpacity = range > 0 ? minOpacity + oscillation * range : minOpacity;
+            strobeAnimationRef.current += 0.05 * speed;
           }
 
           ctx.globalAlpha = currentOpacity;

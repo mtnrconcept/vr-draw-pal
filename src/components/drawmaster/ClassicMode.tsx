@@ -64,10 +64,12 @@ const ClassicMode = ({
 
   useEffect(() => {
     if (!strobeEnabled) {
-      setDynamicOpacity(opacity / 100);
       strobePhaseRef.current = 0;
+      setDynamicOpacity(opacity / 100);
       return;
     }
+
+    strobePhaseRef.current = -Math.PI / 2;
 
     let frame: number;
     const animate = () => {
@@ -75,14 +77,16 @@ const ClassicMode = ({
       const max = Math.max(strobeMinOpacity, strobeMaxOpacity) / 100;
       const range = Math.max(max - min, 0);
 
-      strobePhaseRef.current += 0.05 * strobeSpeed;
       const oscillation = (Math.sin(strobePhaseRef.current) + 1) / 2;
       const value = range > 0 ? min + oscillation * range : min;
       setDynamicOpacity(value);
+
+      strobePhaseRef.current += 0.05 * strobeSpeed;
       frame = requestAnimationFrame(animate);
     };
 
-    frame = requestAnimationFrame(animate);
+    animate();
+
     return () => cancelAnimationFrame(frame);
   }, [strobeEnabled, strobeSpeed, strobeMinOpacity, strobeMaxOpacity, opacity]);
 
