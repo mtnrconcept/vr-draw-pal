@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
+import PointTrackingManager from "./PointTrackingManager";
+import ARWorkflowGuide from "./ARWorkflowGuide";
+import { TrackingConfiguration } from "@/hooks/useTrackingPoints";
 
 // Simple toast replacement
 const toast = {
@@ -9,203 +13,35 @@ const toast = {
   error: (msg: string) => console.error("✗", msg)
 };
 
-// Types
-interface TrackingPoint {
-  id: string;
-  x: number;
-  y: number;
-  label?: string;
+interface ARAnchorsModeProps {
+  referenceImage: string | null;
+  ghostMentorEnabled?: boolean;
 }
 
-interface TrackingConfiguration {
-  id: string;
-  name: string;
-  referenceImage: string;
-  trackingPoints: TrackingPoint[];
-  overlayImage: string;
-  overlayAnchors: TrackingPoint[];
-}
-
-interface TrackingResult {
-  isTracking: boolean;
-  homography: number[] | null;
-  matchedPoints: number;
-  stability: number;
-}
-
-// OpenCV Tracker simplifié
-class SimpleTracker {
-  private cv: any;
-  private referencePoints: TrackingPoint[] = [];
-  private templates: any[] = [];
-  private lastPositions: { x: number; y: number }[] = [];
-
-  constructor() {
-    this.cv = (window as any).cv;
-    if (!this.cv) throw new Error("OpenCV non chargé");
-  }
-
-  initializeReferencePoints(imageData: ImageData, points: TrackingPoint[]) {
-    this.dispose();
-    if (points.length < 4) throw new Error("Minimum 4 points requis");
-
-    const src = this.cv.matFromImageData(imageData);
-    const gray = new this.cv.Mat();
-    this.cv.cvtColor(src, gray, this.cv.COLOR_RGBA2GRAY);
-
-    this.referencePoints = [...points];
-    this.lastPositions = points.map(p => ({ x: p.x, y: p.y }));
-    this.templates = [];
-
-    const templateSize = 64;
-
-    points.forEach(point => {
-      const half = Math.floor(templateSize / 2);
-      const startX = Math.max(0, Math.min(gray.cols - templateSize, Math.round(point.x) - half));
-      const startY = Math.max(0, Math.min(gray.rows - templateSize, Math.round(point.y) - half));
-
-      const rect = new this.cv.Rect(startX, startY, templateSize, templateSize);
-      const roi = gray.roi(rect);
-      const template = new this.cv.Mat();
-      roi.copyTo(template);
-
-      this.templates.push({
-        mat: template,
-        centerX: startX + templateSize / 2,
-        centerY: startY + templateSize / 2,
-        offsetX: point.x - (startX + templateSize / 2),
-        offsetY: point.y - (startY + templateSize / 2)
-      });
-
-      roi.delete();
-    });
-
-    src.delete();
-    gray.delete();
-  }
-
-  trackFrame(frameData: ImageData): TrackingResult {
-    if (this.templates.length === 0) {
-      return { isTracking: false, homography: null, matchedPoints: 0, stability: 0 };
-    }
-
-    const frame = this.cv.matFromImageData(frameData);
-    const gray = new this.cv.Mat();
-    this.cv.cvtColor(frame, gray, this.cv.COLOR_RGBA2GRAY);
-
-    const srcPoints: number[] = [];
-    const dstPoints: number[] = [];
-    let matchedCount = 0;
-    let stabilitySum = 0;
-
-    this.templates.forEach((template, idx) => {
-      const searchRadius = 100;
-      const lastPos = this.lastPositions[idx];
-
-      let searchX = Math.round(lastPos.x - template.mat.cols / 2 - searchRadius);
-      let searchY = Math.round(lastPos.y - template.mat.rows / 2 - searchRadius);
-      let searchW = template.mat.cols + searchRadius * 2;
-      let searchH = template.mat.rows + searchRadius * 2;
-
-      searchX = Math.max(0, searchX);
-      searchY = Math.max(0, searchY);
-      searchW = Math.min(searchW, gray.cols - searchX);
-      searchH = Math.min(searchH, gray.rows - searchY);
-
-      if (searchW < template.mat.cols || searchH < template.mat.rows) return;
-
-      const rect = new this.cv.Rect(searchX, searchY, searchW, searchH);
-      const roi = gray.roi(rect);
-      const result = new this.cv.Mat();
-
-      try {
-        this.cv.matchTemplate(roi, template.mat, result, this.cv.TM_CCOEFF_NORMED);
-        const minMax = this.cv.minMaxLoc(result);
-
-        if (minMax.maxVal > 0.6) {
-          const matchX = searchX + minMax.maxLoc.x + template.mat.cols / 2 + template.offsetX;
-          const matchY = searchY + minMax.maxLoc.y + template.mat.rows / 2 + template.offsetY;
-
-          this.lastPositions[idx] = { x: matchX, y: matchY };
-          srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
-          dstPoints.push(matchX, matchY);
-          matchedCount++;
-          stabilitySum += minMax.maxVal;
-        }
-      } catch (e) {
-        console.error("Template matching failed:", e);
-      }
-
-      roi.delete();
-      result.delete();
-    });
-
-    let homography: number[] | null = null;
-    let stability = 0;
-
-    if (matchedCount >= 4) {
-      try {
-        const srcMat = this.cv.matFromArray(matchedCount, 1, this.cv.CV_32FC2, srcPoints);
-        const dstMat = this.cv.matFromArray(matchedCount, 1, this.cv.CV_32FC2, dstPoints);
-        const H = this.cv.findHomography(srcMat, dstMat, this.cv.RANSAC, 5.0);
-
-        if (!H.empty()) {
-          homography = [];
-          for (let i = 0; i < 9; i++) {
-            homography.push(H.doubleAt(Math.floor(i / 3), i % 3));
-          }
-          stability = Math.min(100, (stabilitySum / matchedCount) * 100);
-        }
-
-        H.delete();
-        srcMat.delete();
-        dstMat.delete();
-      } catch (e) {
-        console.error("Homography failed:", e);
-      }
-    }
-
-    frame.delete();
-    gray.delete();
-
-    return {
-      isTracking: homography !== null,
-      homography,
-      matchedPoints: matchedCount,
-      stability
-    };
-  }
-
-  dispose() {
-    this.templates.forEach(t => t.mat?.delete());
-    this.templates = [];
-    this.referencePoints = [];
-    this.lastPositions = [];
-  }
-}
-
-// Composant principal
-export default function ARModeFixed() {
+export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const compositeCanvasRef = useRef<HTMLCanvasElement>(null);
-  const trackerRef = useRef<SimpleTracker | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const trackerRef = useRef<OpenCVTracker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
   const [streamActive, setStreamActive] = useState(false);
   const [trackingActive, setTrackingActive] = useState(false);
   const [trackingStability, setTrackingStability] = useState(0);
   const [matchedPoints, setMatchedPoints] = useState(0);
+  const [configuredPoints, setConfiguredPoints] = useState<TrackingPoint[]>([]);
+  const [trackingReferenceImageUrl, setTrackingReferenceImageUrl] = useState<string | null>(null);
+  const [overlayImageUrl, setOverlayImageUrl] = useState<string | null>(null);
+  const [overlayToReferenceHomography, setOverlayToReferenceHomography] = useState<number[] | null>(null);
+  const [isInitializingTracking, setIsInitializingTracking] = useState(false);
   const [overlayImage, setOverlayImage] = useState<HTMLImageElement | null>(null);
-  const [config, setConfig] = useState<TrackingConfiguration | null>(null);
-  const [overlayToReferenceH, setOverlayToReferenceH] = useState<number[] | null>(null);
 
-  // Vérifier OpenCV
+  // Check if OpenCV is loaded
   useEffect(() => {
     const checkOpenCV = () => {
       if ((window as any).cv) {
-        toast.success("OpenCV chargé ✓");
+        toast.success("OpenCV chargé et prêt");
       } else {
-        toast.error("OpenCV non disponible");
+        toast.error("OpenCV non disponible. Rechargez la page.");
       }
     };
     
@@ -217,7 +53,6 @@ export default function ARModeFixed() {
     }
   }, []);
 
-  // Démarrer caméra
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -237,68 +72,53 @@ export default function ARModeFixed() {
     }
   };
 
-  // Calculer homographie overlay → reference
-  const computeOverlayToReference = (overlayAnchors: TrackingPoint[], refPoints: TrackingPoint[]) => {
-    if (!(window as any).cv || overlayAnchors.length < 4 || refPoints.length < 4) {
-      return null;
-    }
+  const multiplyHomographies = (a: number[], b: number[]) => {
+    return [
+      a[0] * b[0] + a[1] * b[3] + a[2] * b[6],
+      a[0] * b[1] + a[1] * b[4] + a[2] * b[7],
+      a[0] * b[2] + a[1] * b[5] + a[2] * b[8],
+      a[3] * b[0] + a[4] * b[3] + a[5] * b[6],
+      a[3] * b[1] + a[4] * b[4] + a[5] * b[7],
+      a[3] * b[2] + a[4] * b[5] + a[5] * b[8],
+      a[6] * b[0] + a[7] * b[3] + a[8] * b[6],
+      a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
+      a[6] * b[2] + a[7] * b[5] + a[8] * b[8]
+    ];
+  };
 
-    const cv = (window as any).cv;
-    const srcPts = overlayAnchors.flatMap(p => [p.x, p.y]);
-    const dstPts = refPoints.flatMap(p => [p.x, p.y]);
-
-    const srcMat = cv.matFromArray(overlayAnchors.length, 1, cv.CV_32FC2, srcPts);
-    const dstMat = cv.matFromArray(refPoints.length, 1, cv.CV_32FC2, dstPts);
-    
-    try {
-      const H = cv.getPerspectiveTransform(srcMat, dstMat);
-      const result: number[] = [];
-      for (let i = 0; i < 9; i++) {
-        result.push(H.doubleAt(Math.floor(i / 3), i % 3));
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
       }
-      H.delete();
-      srcMat.delete();
-      dstMat.delete();
-      return result;
-    } catch (e) {
-      console.error("Failed to compute overlay transform:", e);
-      srcMat.delete();
-      dstMat.delete();
-      return null;
-    }
-  };
-
-  // Charger une configuration
-  const loadConfiguration = async (mockConfig: TrackingConfiguration) => {
-    if (trackingActive) {
-      setTrackingActive(false);
       trackerRef.current?.dispose();
-      trackerRef.current = null;
-    }
+    };
+  }, []);
 
-    // Charger l'image overlay
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = reject;
-      img.src = mockConfig.overlayImage;
+  const loadReferenceImageData = async (dataUrl: string) => {
+    return new Promise<ImageData>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Impossible d'initialiser le canvas"));
+          return;
+        }
+        ctx.drawImage(image, 0, 0);
+        const imageData = ctx.getImageData(0, 0, image.width, image.height);
+        resolve(imageData);
+      };
+      image.onerror = () => reject(new Error("Impossible de charger l'image de référence"));
+      image.src = dataUrl;
     });
-
-    setOverlayImage(img);
-    setConfig(mockConfig);
-
-    // Calculer transformation overlay → reference
-    const H = computeOverlayToReference(mockConfig.overlayAnchors, mockConfig.trackingPoints);
-    setOverlayToReferenceH(H);
-
-    toast.success(`Configuration chargée : ${mockConfig.name}`);
   };
 
-  // Démarrer le tracking
   const startTracking = async () => {
-    if (!streamActive || !config || !overlayImage) {
-      toast.error("Chargez d'abord une configuration");
+    if (!streamActive || configuredPoints.length < 4) {
+      toast.error("Configurez d'abord les points de tracking");
       return;
     }
 
@@ -307,67 +127,57 @@ export default function ARModeFixed() {
       return;
     }
 
-    const video = videoRef.current;
-    const canvas = compositeCanvasRef.current;
+    if (!trackingReferenceImageUrl) {
+      toast.error("Aucune image de référence disponible");
+      return;
+    }
 
-    if (!video || !canvas) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas || !video) return;
+
     if (!video.videoWidth || !video.videoHeight) {
-      toast.error("La vidéo n'est pas prête");
+      toast.error("La vidéo n'est pas prête. Réessayez dans un instant");
       return;
     }
 
     try {
-      // Préparer canvas
+      setIsInitializingTracking(true);
+      const referenceImageData = await loadReferenceImageData(trackingReferenceImageUrl);
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        toast.error("Impossible d'initialiser le canvas vidéo");
+        return;
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Charger l'image de référence
-      const refCanvas = document.createElement("canvas");
-      const refCtx = refCanvas.getContext("2d")!;
-      const refImg = new Image();
-      refImg.src = config.referenceImage;
-      await new Promise(resolve => { refImg.onload = resolve; });
-      
-      refCanvas.width = refImg.width;
-      refCanvas.height = refImg.height;
-      refCtx.drawImage(refImg, 0, 0);
-      const refImageData = refCtx.getImageData(0, 0, refImg.width, refImg.height);
-
-      // Initialiser tracker
       trackerRef.current?.dispose();
-      trackerRef.current = new SimpleTracker();
-      trackerRef.current.initializeReferencePoints(refImageData, config.trackingPoints);
+      trackerRef.current = new OpenCVTracker();
 
+      trackerRef.current.initializeReferencePoints(referenceImageData, configuredPoints);
+      setMatchedPoints(0);
+      setTrackingStability(0);
       setTrackingActive(true);
-      toast.success("Tracking démarré");
+      toast.success("Tracking activé");
     } catch (error) {
       console.error(error);
-      toast.error("Impossible d'initialiser le tracking");
+      toast.error((error as Error).message || "Impossible d'initialiser le tracking");
+      trackerRef.current?.dispose();
+      trackerRef.current = null;
+    } finally {
+      setIsInitializingTracking(false);
     }
   };
 
-  // Multiplier deux homographies
-  const multiplyHomographies = (A: number[], B: number[]): number[] => {
-    return [
-      A[0]*B[0] + A[1]*B[3] + A[2]*B[6],
-      A[0]*B[1] + A[1]*B[4] + A[2]*B[7],
-      A[0]*B[2] + A[1]*B[5] + A[2]*B[8],
-      A[3]*B[0] + A[4]*B[3] + A[5]*B[6],
-      A[3]*B[1] + A[4]*B[4] + A[5]*B[7],
-      A[3]*B[2] + A[4]*B[5] + A[5]*B[8],
-      A[6]*B[0] + A[7]*B[3] + A[8]*B[6],
-      A[6]*B[1] + A[7]*B[4] + A[8]*B[7],
-      A[6]*B[2] + A[7]*B[5] + A[8]*B[8]
-    ];
-  };
-
-  // Boucle de rendu
   useEffect(() => {
     if (!trackingActive || !trackerRef.current || !streamActive || !overlayImage) return;
 
     const trackLoop = () => {
       const video = videoRef.current;
-      const canvas = compositeCanvasRef.current;
+      const canvas = canvasRef.current;
       const cv = (window as any).cv;
 
       if (!video || !canvas || !cv) return;
@@ -386,10 +196,10 @@ export default function ARModeFixed() {
       setTrackingStability(result.stability);
 
       // 3. Si tracking OK, projeter l'overlay
-      if (result.isTracking && result.homography && overlayToReferenceH) {
+      if (result.isTracking && result.homography && overlayToReferenceHomography) {
         try {
           // Calculer homographie finale : H_total = H_cam_to_ref × H_overlay_to_ref
-          const finalH = multiplyHomographies(result.homography, overlayToReferenceH);
+          const finalH = multiplyHomographies(result.homography, overlayToReferenceHomography);
 
           // Créer matrice OpenCV
           const HMat = cv.matFromArray(3, 3, cv.CV_64F, finalH);
@@ -426,20 +236,16 @@ export default function ARModeFixed() {
           ctx.globalAlpha = 1.0;
 
           // Dessiner points de debug
-          const trackedPoints = config!.trackingPoints.map((refPt, idx) => {
+          configuredPoints.forEach((refPt, idx) => {
             const h = finalH;
             const w = h[6] * refPt.x + h[7] * refPt.y + h[8];
-            if (Math.abs(w) < 0.001) return null;
-            return {
-              x: (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w,
-              y: (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w
-            };
-          }).filter(p => p !== null);
+            if (Math.abs(w) < 0.001) return;
+            
+            const x = (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w;
+            const y = (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w;
 
-          trackedPoints.forEach((pt, idx) => {
-            if (!pt) return;
             ctx.beginPath();
-            ctx.arc(pt.x, pt.y, 8, 0, 2 * Math.PI);
+            ctx.arc(x, y, 8, 0, 2 * Math.PI);
             ctx.fillStyle = "rgba(34, 197, 94, 0.8)";
             ctx.fill();
             ctx.strokeStyle = "#22c55e";
@@ -450,7 +256,7 @@ export default function ARModeFixed() {
             ctx.font = "bold 12px sans-serif";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText((idx + 1).toString(), pt.x, pt.y);
+            ctx.fillText((idx + 1).toString(), x, y);
           });
 
           // Cleanup
@@ -472,106 +278,149 @@ export default function ARModeFixed() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [trackingActive, streamActive, overlayImage, config, overlayToReferenceH]);
+  }, [trackingActive, streamActive, overlayImage, configuredPoints, overlayToReferenceHomography]);
 
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+  const computeOverlayToReference = (overlayPoints: TrackingPoint[], referencePoints: TrackingPoint[]) => {
+    if (!(window as any).cv) {
+      toast.error("OpenCV non disponible pour calculer l'alignement");
+      return null;
+    }
+
+    if (overlayPoints.length < 4 || referencePoints.length < 4) {
+      return null;
+    }
+
+    const cv = (window as any).cv;
+    let src: any | null = null;
+    let dst: any | null = null;
+    let transform: any | null = null;
+
+    try {
+      src = cv.matFromArray(overlayPoints.length, 1, cv.CV_32FC2, overlayPoints.flatMap(p => [p.x, p.y]));
+      dst = cv.matFromArray(referencePoints.length, 1, cv.CV_32FC2, referencePoints.flatMap(p => [p.x, p.y]));
+      transform = cv.getPerspectiveTransform(src, dst);
+
+      const data: number[] = [];
+      for (let i = 0; i < 9; i += 1) {
+        data.push(transform.doubleAt(Math.floor(i / 3), i % 3));
       }
+      return data;
+    } catch (error) {
+      console.error("Perspective transform computation failed", error);
+      toast.error("Impossible de calculer l'alignement des ancres");
+      return null;
+    } finally {
+      transform?.delete();
+      src?.delete();
+      dst?.delete();
+    }
+  };
+
+  const handleConfigurationReady = async (config: TrackingConfiguration) => {
+    if (trackingActive) {
+      setTrackingActive(false);
       trackerRef.current?.dispose();
-    };
-  }, []);
+      trackerRef.current = null;
+    }
 
-  // Configuration de test
-  const loadTestConfig = () => {
-    const mockConfig: TrackingConfiguration = {
-      id: "test-config",
-      name: "Configuration Test",
-      referenceImage: "data:image/svg+xml,%3Csvg width='800' height='600' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='800' height='600' fill='%23f0f0f0'/%3E%3Ccircle cx='100' cy='100' r='40' fill='%23ff0000'/%3E%3Ccircle cx='700' cy='100' r='40' fill='%2300ff00'/%3E%3Ccircle cx='700' cy='500' r='40' fill='%230000ff'/%3E%3Ccircle cx='100' cy='500' r='40' fill='%23ffff00'/%3E%3Ctext x='400' y='300' text-anchor='middle' font-size='48' fill='%23333'%3ETRACKING TEST%3C/text%3E%3C/svg%3E",
-      trackingPoints: [
-        { id: "p1", x: 100, y: 100, label: "Point 1" },
-        { id: "p2", x: 700, y: 100, label: "Point 2" },
-        { id: "p3", x: 700, y: 500, label: "Point 3" },
-        { id: "p4", x: 100, y: 500, label: "Point 4" }
-      ],
-      overlayImage: "data:image/svg+xml,%3Csvg width='400' height='300' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3ClinearGradient id='grad' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' style='stop-color:%236366f1;stop-opacity:1'/%3E%3Cstop offset='100%25' style='stop-color:%23ec4899;stop-opacity:1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='400' height='300' fill='url(%23grad)'/%3E%3Ctext x='200' y='150' text-anchor='middle' font-size='36' fill='white' font-weight='bold'%3EOVERLAY%3C/text%3E%3C/svg%3E",
-      overlayAnchors: [
-        { id: "a1", x: 0, y: 0, label: "Ancre 1" },
-        { id: "a2", x: 400, y: 0, label: "Ancre 2" },
-        { id: "a3", x: 400, y: 300, label: "Ancre 3" },
-        { id: "a4", x: 0, y: 300, label: "Ancre 4" }
-      ]
-    };
+    setTrackingReferenceImageUrl(config.referenceImage);
+    setConfiguredPoints(config.trackingPoints);
+    setOverlayImageUrl(config.overlayImage);
+    
+    // Charger l'image overlay
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = config.overlayImage;
+    });
+    setOverlayImage(img);
 
-    loadConfiguration(mockConfig);
+    const transform = computeOverlayToReference(config.overlayAnchors, config.trackingPoints);
+    setOverlayToReferenceHomography(transform);
+    setMatchedPoints(0);
+    setTrackingStability(0);
+    toast.success(`Configuration prête avec ${config.trackingPoints.length} points`);
   };
 
   return (
-    <div className="space-y-4 p-4">
-      <Alert>
-        <AlertDescription>
-          <strong>Mode AR Corrigé 2D</strong> - L'image suit maintenant les mouvements de la feuille grâce à warpPerspective d'OpenCV
-        </AlertDescription>
-      </Alert>
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div className="lg:col-span-1 space-y-4">
+        <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
+        <ARWorkflowGuide />
+      </div>
 
-      <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black">
-        <video
-          ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover opacity-0"
-        />
+      <div className="lg:col-span-3 space-y-4">
+        <Alert>
+          <AlertDescription>
+            Mode AR par Points : Dessinez des points sur votre feuille, configurez-les, 
+            puis activez le tracking pour projeter votre image de référence.
+          </AlertDescription>
+        </Alert>
 
-        <canvas
-          ref={compositeCanvasRef}
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+
+          <canvas
+            ref={canvasRef}
+            className="absolute inset-0 w-full h-full"
+          />
+
+          {trackingActive && (
+            <div className="absolute top-2 right-2 bg-black/70 text-white p-3 rounded-lg space-y-1">
+              <p className="text-xs font-semibold">Tracking actif</p>
+              <div className="flex items-center gap-2">
+                <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${trackingStability}%` }}
+                  />
+                </div>
+                <span className="text-xs">{Math.round(trackingStability)}%</span>
+              </div>
+              <p className="text-xs">Points: {matchedPoints}</p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          {!streamActive ? (
+            <Button className="flex-1" onClick={startCamera}>
+              Activer la caméra
+            </Button>
+          ) : (
+            <Button 
+              className="flex-1" 
+              onClick={startTracking}
+              disabled={
+                configuredPoints.length < 4 ||
+                trackingActive ||
+                isInitializingTracking ||
+                !trackingReferenceImageUrl
+              }
+            >
+              {trackingActive
+                ? "Tracking actif"
+                : isInitializingTracking
+                  ? "Initialisation..."
+                  : "Démarrer le tracking"}
+            </Button>
+          )}
+        </div>
 
         {trackingActive && (
-          <div className="absolute top-2 right-2 bg-black/70 text-white p-3 rounded-lg space-y-1">
-            <p className="text-xs font-semibold">Tracking actif</p>
-            <div className="flex items-center gap-2">
-              <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-green-500 transition-all"
-                  style={{ width: `${trackingStability}%` }}
-                />
-              </div>
-              <span className="text-xs">{Math.round(trackingStability)}%</span>
-            </div>
-            <p className="text-xs">Points: {matchedPoints}/4</p>
-          </div>
+          <Card className="p-3 bg-primary/10 border-primary">
+            <p className="font-semibold text-sm">Tracking 2D actif</p>
+            <p className="text-xs text-muted-foreground">
+              L'image de référence est projetée selon vos points de tracking
+            </p>
+          </Card>
         )}
       </div>
-
-      <div className="flex gap-2">
-        {!streamActive ? (
-          <Button className="flex-1" onClick={startCamera}>
-            Activer la caméra
-          </Button>
-        ) : !config ? (
-          <Button className="flex-1" onClick={loadTestConfig}>
-            Charger config test
-          </Button>
-        ) : (
-          <Button 
-            className="flex-1" 
-            onClick={startTracking}
-            disabled={trackingActive || !overlayImage}
-          >
-            {trackingActive ? "Tracking actif" : "Démarrer le tracking"}
-          </Button>
-        )}
-      </div>
-
-      {config && (
-        <Card className="p-3 bg-primary/10">
-          <p className="font-semibold text-sm">{config.name}</p>
-          <p className="text-xs text-muted-foreground">
-            {config.trackingPoints.length} points • Overlay chargé
-          </p>
-        </Card>
-      )}
     </div>
   );
 }
