@@ -117,7 +117,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   };
 
   const startTracking = async () => {
-    if (!streamActive || configuredPoints.length < 4) {
+    if (!streamActive || configuredPoints.length < 8) {
       toast.error("Configurez d'abord les points de tracking");
       return;
     }
