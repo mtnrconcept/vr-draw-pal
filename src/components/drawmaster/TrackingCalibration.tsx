@@ -48,46 +48,6 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     { id: string; label: string; ratioX: number; ratioY: number }
   >([]);
 
-  useEffect(() => {
-    if (step !== "anchor" || !overlayImage) return;
-    redrawOverlayCanvas(overlayAnchors);
-  }, [overlayAnchors, overlayImage, redrawOverlayCanvas, step]);
-
-  useEffect(() => {
-    if (step !== "review" || !capturedImage) return;
-    drawPoints(markedPoints);
-  }, [capturedImage, drawPoints, markedPoints, step]);
-
-  useEffect(() => {
-    if (step !== "anchor" && step !== "capture") return;
-    if (!streamActive) {
-      void startCamera();
-    }
-  }, [startCamera, step, streamActive]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const updateCanvasSize = () => {
-      const canvas = videoOverlayCanvasRef.current;
-      if (!canvas) return;
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      redrawVideoCanvas();
-    };
-
-    video.addEventListener("loadedmetadata", updateCanvasSize);
-    if (video.readyState >= 2) {
-      updateCanvasSize();
-    }
-
-    return () => {
-      video.removeEventListener("loadedmetadata", updateCanvasSize);
-    };
-  }, [step, redrawVideoCanvas]);
-
   const handleOverlayUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -144,6 +104,11 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     [overlayImage]
   );
 
+  useEffect(() => {
+    if (step !== "anchor" || !overlayImage) return;
+    redrawOverlayCanvas(overlayAnchors);
+  }, [overlayAnchors, overlayImage, redrawOverlayCanvas, step]);
+
   const redrawVideoCanvas = useCallback(
     (ratios: { id: string; label: string; ratioX: number; ratioY: number }[] = videoAnchorRatios) => {
       const canvas = videoOverlayCanvasRef.current;
@@ -173,6 +138,29 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     },
     [videoAnchorRatios]
   );
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const updateCanvasSize = () => {
+      const canvas = videoOverlayCanvasRef.current;
+      if (!canvas) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      redrawVideoCanvas();
+    };
+
+    video.addEventListener("loadedmetadata", updateCanvasSize);
+    if (video.readyState >= 2) {
+      updateCanvasSize();
+    }
+
+    return () => {
+      video.removeEventListener("loadedmetadata", updateCanvasSize);
+    };
+  }, [step, redrawVideoCanvas]);
 
   useEffect(() => {
     redrawVideoCanvas();
@@ -306,6 +294,13 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     }
   }, [redrawVideoCanvas]);
 
+  useEffect(() => {
+    if (step !== "anchor" && step !== "capture") return;
+    if (!streamActive) {
+      void startCamera();
+    }
+  }, [startCamera, step, streamActive]);
+
   const stopCameraStream = () => {
     const video = videoRef.current;
     const stream = video?.srcObject as MediaStream | null;
@@ -380,6 +375,11 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     },
     [capturedImage]
   );
+
+  useEffect(() => {
+    if (step !== "review" || !capturedImage) return;
+    drawPoints(markedPoints);
+  }, [capturedImage, drawPoints, markedPoints, step]);
 
   const handleComplete = () => {
     if (!overlayImage) {
