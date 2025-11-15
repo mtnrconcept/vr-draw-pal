@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import * as THREE from "three";
 import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
 import PointTrackingManager from "./PointTrackingManager";
+import ARWorkflowGuide from "./ARWorkflowGuide";
 
 interface ARAnchorsModeProps {
   referenceImage: string | null;
@@ -293,6 +294,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
       <div className="lg:col-span-1 space-y-4">
         <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
+        <ARWorkflowGuide />
       </div>
 
       <div className="lg:col-span-3 space-y-4">
