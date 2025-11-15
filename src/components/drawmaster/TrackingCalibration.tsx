@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Camera, Undo, Check, X, Upload } from "lucide-react";
+import { Camera, Undo, Check, X } from "lucide-react";
 import { TrackingPoint } from "@/lib/opencv/tracker";
 
 // Simple toast replacement
@@ -26,7 +26,7 @@ export interface TrackingCalibrationResult {
   name: string;
 }
 
-type CalibrationStep = "instructions" | "upload" | "video-capture" | "anchor" | "capture" | "review";
+type CalibrationStep = "instructions" | "upload" | "video-capture" | "anchor" | "review";
 
 export default function TrackingCalibration({ onComplete, onCancel }: TrackingCalibrationProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -241,7 +241,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   }, [redrawVideoCanvas]);
 
   useEffect(() => {
-    if (step !== "video-capture" && step !== "capture") return;
+    if (step !== "video-capture") return;
     if (!streamActive) {
       void startCamera();
     }
@@ -297,59 +297,31 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     setDraggingAnchorId(null);
   };
 
-  const captureReference = () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-
-    if (!video || !canvas) return;
-    
-    // Limit resolution to reduce base64 size
-    const maxWidth = 1280;
-    const maxHeight = 720;
-    
-    let width = video.videoWidth;
-    let height = video.videoHeight;
-    
-    if (width > maxWidth || height > maxHeight) {
-      const ratio = Math.min(maxWidth / width, maxHeight / height);
-      width = Math.floor(width * ratio);
-      height = Math.floor(height * ratio);
-    }
-    
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
-    
-    if (!ctx) return;
-
-    ctx.drawImage(video, 0, 0, width, height);
-    
-    // Use lower quality to reduce base64 size
-    const imageData = canvas.toDataURL("image/jpeg", 0.75);
-    
-    // Validate the image data
-    if (!imageData || !imageData.startsWith("data:image/jpeg;base64,")) {
-      toast.error("Erreur lors de la capture de l'image");
+  const finalizeAnchors = useCallback(() => {
+    if (!videoCaptureImage) {
+      toast.error("Capturez votre feuille avant de valider les ancres");
       return;
     }
-    
-    setCapturedImage(imageData);
 
-    const pointsFromVideo = videoAnchorRatios.map((anchor, index) => ({
-      id: `point_${anchor.id}`,
-      x: anchor.ratioX * canvas.width,
-      y: anchor.ratioY * canvas.height,
-      label: `Point ${index + 1}`
-    }));
+    const img = new Image();
+    img.onload = () => {
+      const pointsFromVideo = videoAnchorRatios.map((anchor, index) => ({
+        id: `point_${anchor.id}`,
+        x: anchor.ratioX * img.width,
+        y: anchor.ratioY * img.height,
+        label: `Point ${index + 1}`
+      }));
 
-    setMarkedPoints(pointsFromVideo);
-
-    // Stop camera
-    stopCameraStream();
-
-    setStep("review");
-    toast.success("Photo capturée ! Vérifiez l'alignement des points");
-  };
+      setCapturedImage(videoCaptureImage);
+      setMarkedPoints(pointsFromVideo);
+      setStep("review");
+      toast.success("Ancres alignées ! Vérifiez l'aperçu final.");
+    };
+    img.onerror = () => {
+      toast.error("Impossible de charger la capture pour finaliser les ancres");
+    };
+    img.src = videoCaptureImage;
+  }, [videoAnchorRatios, videoCaptureImage]);
   const drawPoints = useCallback(
     (points: TrackingPoint[]) => {
       const canvas = imageCanvasRef.current;
@@ -448,16 +420,14 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
           {step === "upload" && "Étape 1 : Importer votre image"}
           {step === "video-capture" && "Étape 2 : Capturer votre feuille"}
           {step === "anchor" && "Étape 3 : Placer et aligner les ancres"}
-          {step === "capture" && "Étape 4 : Capturer la référence finale"}
-          {step === "review" && "Étape 5 : Vérifier et valider"}
+          {step === "review" && "Étape 4 : Vérifier et valider"}
         </h3>
         <p className="text-sm text-muted-foreground">
           {step === "instructions" && "Avant de commencer, préparez votre feuille avec 4 marqueurs de tracking bien visibles."}
           {step === "upload" && "Sélectionnez l'image de référence à projeter sur votre feuille."}
           {step === "video-capture" && "Positionnez votre feuille avec les 4 marqueurs visibles et capturez l'image."}
           {step === "anchor" &&
-            "Placez les ancres directement sur la capture de votre feuille afin qu'elles correspondent à vos marqueurs physiques."}
-          {step === "capture" && "Cadrez votre feuille avec la caméra puis capturez-la pour enregistrer les points physiques."}
+            "Placez les ancres directement sur la capture de votre feuille afin qu'elles correspondent à vos marqueurs physiques, puis validez."}
           {step === "review" && "Vérifiez l'alignement final puis validez la configuration."}
         </p>
       </div>
@@ -611,12 +581,12 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
               Réinitialiser les ancres
             </Button>
             <Button
-              onClick={() => setStep("capture")}
+              onClick={finalizeAnchors}
               disabled={videoAnchorRatios.length !== 4}
               className="flex-1"
             >
-              <Upload className="w-4 h-4 mr-2" />
-              Continuer vers la capture finale
+              <Check className="w-4 h-4 mr-2" />
+              Valider les ancres
             </Button>
             <Button
               variant="outline"
@@ -631,57 +601,6 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
             <Button variant="outline" onClick={resetAndCancel}>
               <X className="w-4 h-4 mr-2" />
               Annuler
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === "capture" && (
-        <div className="space-y-4">
-          <p className="text-xs text-muted-foreground">
-            Assurez-vous que la feuille et les points physiques sont bien visibles avant de capturer.
-          </p>
-          <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black">
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" />
-            <canvas ref={canvasRef} className="hidden" />
-          </div>
-
-          <div className="flex gap-2">
-            {!streamActive ? (
-              <Button onClick={startCamera} className="flex-1">
-                <Camera className="w-4 h-4 mr-2" />
-                Activer la caméra
-              </Button>
-            ) : (
-              <Button
-                onClick={captureReference}
-                className="flex-1"
-                disabled={videoAnchorRatios.length !== overlayAnchors.length}
-              >
-                <Check className="w-4 h-4 mr-2" />
-                Capturer
-              </Button>
-            )}
-            <Button variant="outline" onClick={resetAndCancel}>
-              <X className="w-4 h-4 mr-2" />
-              Annuler
-            </Button>
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCapturedImage(null);
-                setMarkedPoints([]);
-                if (!videoCaptureImage) {
-                  setStep("video-capture");
-                } else {
-                  setStep("anchor");
-                }
-              }}
-            >
-              Revenir aux ancres
             </Button>
           </div>
         </div>
@@ -709,10 +628,9 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
               onClick={() => {
                 setCapturedImage(null);
                 setMarkedPoints([]);
-                if (!streamActive) {
-                  void startCamera();
-                }
-                setStep("capture");
+                setVideoCaptureImage(null);
+                setVideoAnchorRatios([]);
+                setStep("video-capture");
               }}
             >
               <Undo className="w-4 h-4 mr-2" />

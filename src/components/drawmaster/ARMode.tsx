@@ -33,33 +33,9 @@ interface ARAnchorsModeProps {
 class HomographySmoothing {
   private last: number[] | null = null;
 
-  // poids de base
-  private readonly alphaSlow = 0.15; // scène stable → image quasi imprimée
-  private readonly alphaMedium = 0.35;
-  private readonly alphaFast = 0.65; // mouvements rapides → plus réactif
-
-  smooth(h: number[], stabilityRatio: number): number[] {
-    if (!this.last) {
-      this.last = [...h];
-      return [...h];
-    }
-
-    // stabilitéRatio ~ [0,1]
-    let alpha: number;
-    if (stabilityRatio >= 0.85) {
-      alpha = this.alphaSlow;
-    } else if (stabilityRatio >= 0.6) {
-      alpha = this.alphaMedium;
-    } else {
-      alpha = this.alphaFast;
-    }
-
-    const out = new Array(9);
-    for (let i = 0; i < 9; i++) {
-      out[i] = alpha * h[i] + (1 - alpha) * this.last[i];
-    }
-    this.last = out;
-    return out;
+  smooth(h: number[]): number[] {
+    this.last = [...h];
+    return [...h];
   }
 
   reset() {
