@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
 import PointTrackingManager from "./PointTrackingManager";
 import ARWorkflowGuide from "./ARWorkflowGuide";
 import { TrackingConfiguration } from "@/hooks/useTrackingPoints";
+import { Eye, EyeOff } from "lucide-react";
 
 // Simple toast replacement
 const toast = {
@@ -18,11 +22,47 @@ interface ARAnchorsModeProps {
   ghostMentorEnabled?: boolean;
 }
 
+// Classe pour lisser les homographies et éviter les sauts
+class HomographySmoothing {
+  private history: number[][] = [];
+  private maxHistory: number;
+  
+  constructor(windowSize: number = 3) {
+    this.maxHistory = windowSize;
+  }
+  
+  smooth(homography: number[]): number[] {
+    this.history.push([...homography]);
+    if (this.history.length > this.maxHistory) {
+      this.history.shift();
+    }
+    
+    // Moyenne pondérée (plus de poids sur les valeurs récentes)
+    const smoothed = new Array(9).fill(0);
+    let totalWeight = 0;
+    
+    this.history.forEach((h, idx) => {
+      const weight = idx + 1; // Poids croissant
+      totalWeight += weight;
+      h.forEach((val, i) => {
+        smoothed[i] += val * weight;
+      });
+    });
+    
+    return smoothed.map(v => v / totalWeight);
+  }
+  
+  reset() {
+    this.history = [];
+  }
+}
+
 export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const trackerRef = useRef<OpenCVTracker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const smoothingRef = useRef<HomographySmoothing>(new HomographySmoothing(5));
 
   const [streamActive, setStreamActive] = useState(false);
   const [trackingActive, setTrackingActive] = useState(false);
@@ -34,6 +74,8 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const [overlayToReferenceHomography, setOverlayToReferenceHomography] = useState<number[] | null>(null);
   const [isInitializingTracking, setIsInitializingTracking] = useState(false);
   const [overlayImage, setOverlayImage] = useState<HTMLImageElement | null>(null);
+  const [showDebugPoints, setShowDebugPoints] = useState(false);
+  const [overlayOpacity, setOverlayOpacity] = useState([70]);
 
   // Check if OpenCV is loaded
   useEffect(() => {
@@ -118,7 +160,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
   const startTracking = async () => {
     if (!streamActive || configuredPoints.length < 4) {
-      toast.error("Configurez d'abord les points de tracking");
+      toast.error("Configurez d'abord les points de tracking (minimum 4)");
       return;
     }
 
@@ -156,6 +198,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
       trackerRef.current?.dispose();
       trackerRef.current = new OpenCVTracker();
+      smoothingRef.current.reset();
 
       trackerRef.current.initializeReferencePoints(referenceImageData, configuredPoints);
       setMatchedPoints(0);
@@ -172,6 +215,24 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     }
   };
 
+  const stopTracking = () => {
+    setTrackingActive(false);
+    trackerRef.current?.dispose();
+    trackerRef.current = null;
+    smoothingRef.current.reset();
+    
+    // Nettoyer le canvas
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    
+    toast.success("Tracking arrêté");
+  };
+
   useEffect(() => {
     if (!trackingActive || !trackerRef.current || !streamActive || !overlayImage) return;
 
@@ -184,6 +245,9 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+
+      // CRUCIAL: Effacer complètement le canvas à chaque frame
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // 1. Dessiner la vidéo en arrière-plan
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -198,8 +262,11 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       // 3. Si tracking OK, projeter l'overlay
       if (result.isTracking && result.homography && overlayToReferenceHomography) {
         try {
-          // Calculer homographie finale : H_total = H_cam_to_ref × H_overlay_to_ref
-          const finalH = multiplyHomographies(result.homography, overlayToReferenceHomography);
+          // Calculer homographie finale
+          const rawFinalH = multiplyHomographies(result.homography, overlayToReferenceHomography);
+          
+          // Appliquer le lissage pour éviter les sauts
+          const finalH = smoothingRef.current.smooth(rawFinalH);
 
           // Créer matrice OpenCV
           const HMat = cv.matFromArray(3, 3, cv.CV_64F, finalH);
@@ -230,34 +297,36 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
           warpedCanvas.height = canvas.height;
           cv.imshow(warpedCanvas, warpedMat);
 
-          // Superposer avec transparence
-          ctx.globalAlpha = 0.7;
+          // Superposer avec opacité contrôlée
+          ctx.globalAlpha = overlayOpacity[0] / 100;
           ctx.drawImage(warpedCanvas, 0, 0);
           ctx.globalAlpha = 1.0;
 
-          // Dessiner points de debug
-          configuredPoints.forEach((refPt, idx) => {
-            const h = finalH;
-            const w = h[6] * refPt.x + h[7] * refPt.y + h[8];
-            if (Math.abs(w) < 0.001) return;
-            
-            const x = (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w;
-            const y = (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w;
+          // Dessiner points de debug SEULEMENT si activé
+          if (showDebugPoints) {
+            configuredPoints.forEach((refPt, idx) => {
+              const h = finalH;
+              const w = h[6] * refPt.x + h[7] * refPt.y + h[8];
+              if (Math.abs(w) < 0.001) return;
+              
+              const x = (h[0] * refPt.x + h[1] * refPt.y + h[2]) / w;
+              const y = (h[3] * refPt.x + h[4] * refPt.y + h[5]) / w;
 
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, 2 * Math.PI);
-            ctx.fillStyle = "rgba(34, 197, 94, 0.8)";
-            ctx.fill();
-            ctx.strokeStyle = "#22c55e";
-            ctx.lineWidth = 2;
-            ctx.stroke();
+              ctx.beginPath();
+              ctx.arc(x, y, 8, 0, 2 * Math.PI);
+              ctx.fillStyle = "rgba(34, 197, 94, 0.8)";
+              ctx.fill();
+              ctx.strokeStyle = "#22c55e";
+              ctx.lineWidth = 2;
+              ctx.stroke();
 
-            ctx.fillStyle = "white";
-            ctx.font = "bold 12px sans-serif";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText((idx + 1).toString(), x, y);
-          });
+              ctx.fillStyle = "white";
+              ctx.font = "bold 12px sans-serif";
+              ctx.textAlign = "center";
+              ctx.textBaseline = "middle";
+              ctx.fillText((idx + 1).toString(), x, y);
+            });
+          }
 
           // Cleanup
           HMat.delete();
@@ -278,7 +347,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [trackingActive, streamActive, overlayImage, configuredPoints, overlayToReferenceHomography]);
+  }, [trackingActive, streamActive, overlayImage, configuredPoints, overlayToReferenceHomography, showDebugPoints, overlayOpacity]);
 
   const computeOverlayToReference = (overlayPoints: TrackingPoint[], referencePoints: TrackingPoint[]) => {
     if (!(window as any).cv) {
@@ -318,9 +387,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
 
   const handleConfigurationReady = async (config: TrackingConfiguration) => {
     if (trackingActive) {
-      setTrackingActive(false);
-      trackerRef.current?.dispose();
-      trackerRef.current = null;
+      stopTracking();
     }
 
     setTrackingReferenceImageUrl(config.referenceImage);
@@ -341,6 +408,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     setOverlayToReferenceHomography(transform);
     setMatchedPoints(0);
     setTrackingStability(0);
+    smoothingRef.current.reset();
     toast.success(`Configuration prête avec ${config.trackingPoints.length} points`);
   };
 
@@ -354,8 +422,8 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       <div className="lg:col-span-3 space-y-4">
         <Alert>
           <AlertDescription>
-            Mode AR par Points : Dessinez des points sur votre feuille, configurez-les, 
-            puis activez le tracking pour projeter votre image de référence.
+            Mode AR par Points : Configurez vos points de tracking (minimum 4, recommandé 6-8 pour plus de stabilité), 
+            puis activez le tracking pour projeter votre image.
           </AlertDescription>
         </Alert>
 
@@ -382,41 +450,84 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
                 </div>
                 <span className="text-xs">{Math.round(trackingStability)}%</span>
               </div>
-              <p className="text-xs">Points: {matchedPoints}</p>
+              <p className="text-xs">Points: {matchedPoints}/{configuredPoints.length}</p>
             </div>
           )}
         </div>
 
-        <div className="flex gap-2">
-          {!streamActive ? (
-            <Button className="flex-1" onClick={startCamera}>
-              Activer la caméra
-            </Button>
-          ) : (
-            <Button 
-              className="flex-1" 
-              onClick={startTracking}
-              disabled={
-                configuredPoints.length < 4 ||
-                trackingActive ||
-                isInitializingTracking ||
-                !trackingReferenceImageUrl
-              }
-            >
-              {trackingActive
-                ? "Tracking actif"
-                : isInitializingTracking
-                  ? "Initialisation..."
-                  : "Démarrer le tracking"}
-            </Button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex gap-2">
+            {!streamActive ? (
+              <Button className="flex-1" onClick={startCamera}>
+                Activer la caméra
+              </Button>
+            ) : !trackingActive ? (
+              <Button 
+                className="flex-1" 
+                onClick={startTracking}
+                disabled={
+                  configuredPoints.length < 4 ||
+                  isInitializingTracking ||
+                  !trackingReferenceImageUrl
+                }
+              >
+                {isInitializingTracking ? "Initialisation..." : "Démarrer le tracking"}
+              </Button>
+            ) : (
+              <Button 
+                className="flex-1"
+                variant="destructive"
+                onClick={stopTracking}
+              >
+                Arrêter le tracking
+              </Button>
+            )}
+          </div>
+
+          {trackingActive && (
+            <>
+              <Card className="p-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="opacity" className="text-sm">Opacité: {overlayOpacity[0]}%</Label>
+                  </div>
+                  <Slider
+                    id="opacity"
+                    value={overlayOpacity}
+                    onValueChange={setOverlayOpacity}
+                    min={0}
+                    max={100}
+                    step={5}
+                  />
+                </div>
+              </Card>
+
+              <Card className="p-3">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="debug-points" className="text-sm">Points de debug</Label>
+                  <div className="flex items-center gap-2">
+                    {showDebugPoints ? (
+                      <Eye className="w-4 h-4 text-primary" />
+                    ) : (
+                      <EyeOff className="w-4 h-4 text-muted-foreground" />
+                    )}
+                    <Switch
+                      id="debug-points"
+                      checked={showDebugPoints}
+                      onCheckedChange={setShowDebugPoints}
+                    />
+                  </div>
+                </div>
+              </Card>
+            </>
           )}
         </div>
 
         {trackingActive && (
           <Card className="p-3 bg-primary/10 border-primary">
-            <p className="font-semibold text-sm">Tracking 2D actif</p>
+            <p className="font-semibold text-sm">Tracking 2D actif avec lissage</p>
             <p className="text-xs text-muted-foreground">
-              L'image de référence est projetée selon vos points de tracking
+              L'image suit les mouvements de la feuille de manière fluide
             </p>
           </Card>
         )}
