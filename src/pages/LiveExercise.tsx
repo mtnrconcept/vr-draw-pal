@@ -84,7 +84,7 @@ const LiveExercise = () => {
         throw error;
       }
 
-      setExercise(data.exercise);
+      setExercise((data as any).exercise);
       toast.success("Exercice généré ! 🎨");
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -126,7 +126,7 @@ const LiveExercise = () => {
 
       if (error) throw error;
 
-      setFeedback(data.feedback);
+      setFeedback((data as any).feedback);
       setQuestion("");
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);

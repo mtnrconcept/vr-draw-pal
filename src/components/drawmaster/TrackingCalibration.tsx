@@ -45,7 +45,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   const [maxPoints, setMaxPoints] = useState(4);
   const [draggingAnchorId, setDraggingAnchorId] = useState<string | null>(null);
   const [videoAnchorRatios, setVideoAnchorRatios] = useState<
-    { id: string; label: string; ratioX: number; ratioY: number }
+    { id: string; label: string; ratioX: number; ratioY: number }[]
   >([]);
 
   const handleOverlayUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -318,14 +318,36 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
 
     if (!video || !canvas) return;
     
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Limit resolution to reduce base64 size
+    const maxWidth = 1280;
+    const maxHeight = 720;
+    
+    let width = video.videoWidth;
+    let height = video.videoHeight;
+    
+    if (width > maxWidth || height > maxHeight) {
+      const ratio = Math.min(maxWidth / width, maxHeight / height);
+      width = Math.floor(width * ratio);
+      height = Math.floor(height * ratio);
+    }
+    
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext("2d");
     
     if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0);
-    const imageData = canvas.toDataURL("image/jpeg", 0.95);
+    ctx.drawImage(video, 0, 0, width, height);
+    
+    // Use lower quality to reduce base64 size
+    const imageData = canvas.toDataURL("image/jpeg", 0.75);
+    
+    // Validate the image data
+    if (!imageData || !imageData.startsWith("data:image/jpeg;base64,")) {
+      toast.error("Erreur lors de la capture de l'image");
+      return;
+    }
+    
     setCapturedImage(imageData);
 
     const pointsFromVideo = videoAnchorRatios.map((anchor, index) => ({

@@ -42,7 +42,7 @@ export const AIAssistant = ({ onClose }: AIAssistantProps) => {
 
       const assistantMessage: Message = {
         role: "assistant",
-        content: data.choices[0].message.content,
+        content: (data as any).choices[0].message.content,
       };
       
       setMessages(prev => [...prev, assistantMessage]);
