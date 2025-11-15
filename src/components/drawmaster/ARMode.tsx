@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -7,7 +7,14 @@ import { Slider } from "@/components/ui/slider";
 import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
 import PointTrackingManager from "./PointTrackingManager";
 import { TrackingConfiguration } from "@/hooks/useTrackingPoints";
-import { Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Eye,
+  EyeOff,
+  LocateFixed,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 
 // Simple toast replacement
 const toast = {
@@ -113,6 +120,11 @@ export default function ARAnchorsMode({
   const [overlayOpacity, setOverlayOpacity] = useState([70]);
   const strobeAnimationRef = useRef<number>(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasLostAnchors, setHasLostAnchors] = useState(false);
+  const [calibrationTrigger, setCalibrationTrigger] = useState(0);
+  const anchorLossFramesRef = useRef(0);
+  const quickRestartingRef = useRef(false);
+  const wasTrackingBeforeCalibrationRef = useRef(false);
 
   useEffect(() => {
     if (strobeEnabled) {
@@ -183,6 +195,8 @@ export default function ARAnchorsMode({
       }
 
       setStreamActive(true);
+      anchorLossFramesRef.current = 0;
+      setHasLostAnchors(false);
       toast.success("Caméra activée");
     } catch (err) {
       console.error(err);
@@ -223,7 +237,7 @@ export default function ARAnchorsMode({
     };
   }, []);
 
-  const loadReferenceImageData = async (source: string) => {
+  const loadReferenceImageData = useCallback(async (source: string) => {
     let objectUrl: string | null = null;
 
     const loadImage = (src: string, useCors: boolean) =>
@@ -281,98 +295,173 @@ export default function ARAnchorsMode({
         URL.revokeObjectURL(objectUrl);
       }
     }
-  };
+  }, []);
 
-  const startTracking = async () => {
-    if (!streamActive || configuredPoints.length < 4) {
-      toast.error("Configurez d'abord les points de tracking (minimum 4)");
-      return;
-    }
-
-    if (!(window as any).cv) {
-      toast.error("OpenCV non chargé");
-      return;
-    }
-
+  const initializeTracker = useCallback(async () => {
     if (!trackingReferenceImageUrl) {
-      toast.error("Aucune image de référence disponible");
-      return;
+      throw new Error("Aucune image de référence disponible");
     }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!canvas || !video) return;
+    if (!canvas || !video) {
+      throw new Error("Flux vidéo indisponible");
+    }
 
     if (!video.videoWidth || !video.videoHeight) {
-      toast.error("La vidéo n'est pas prête. Réessayez dans un instant");
-      return;
+      throw new Error("La vidéo n'est pas prête. Réessayez dans un instant");
     }
 
-    try {
-      setIsInitializingTracking(true);
-      const referenceImageData = await loadReferenceImageData(
-        trackingReferenceImageUrl
-      );
+    const referenceImageData = await loadReferenceImageData(
+      trackingReferenceImageUrl
+    );
 
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        toast.error("Impossible d'initialiser le canvas vidéo");
-        return;
-      }
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      trackerRef.current?.dispose();
-      trackerRef.current = new OpenCVTracker();
-      smoothingRef.current.reset();
-      lastGoodHomographyRef.current = null;
-
-      trackerRef.current.initializeReferencePoints(
-        referenceImageData,
-        configuredPoints
-      );
-      setMatchedPoints(0);
-      setTrackingStability(0);
-      setTrackingActive(true);
-      toast.success("Tracking activé");
-    } catch (error) {
-      console.error(error);
-      toast.error(
-        (error as Error).message || "Impossible d'initialiser le tracking"
-      );
-      trackerRef.current?.dispose();
-      trackerRef.current = null;
-    } finally {
-      setIsInitializingTracking(false);
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Impossible d'initialiser le canvas vidéo");
     }
-  };
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const stopTracking = () => {
-    setTrackingActive(false);
     trackerRef.current?.dispose();
-    trackerRef.current = null;
+    trackerRef.current = new OpenCVTracker();
     smoothingRef.current.reset();
     lastGoodHomographyRef.current = null;
 
-    const cv = (window as any).cv;
-    if (cv) {
-      warpResourcesRef.current.overlayMat?.delete?.();
-      warpResourcesRef.current.warpedMat?.delete?.();
-    }
-    warpResourcesRef.current.overlayMat = null;
-    warpResourcesRef.current.warpedMat = null;
-    warpResourcesRef.current.warpedCanvas = null;
+    trackerRef.current.initializeReferencePoints(
+      referenceImageData,
+      configuredPoints
+    );
+    setMatchedPoints(0);
+    setTrackingStability(0);
+  }, [configuredPoints, loadReferenceImageData, trackingReferenceImageUrl]);
 
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const startTracking = useCallback(
+    async (options?: { silent?: boolean }) => {
+      const silent = options?.silent ?? false;
+
+      if (!streamActive || configuredPoints.length < 4) {
+        if (!silent) {
+          toast.error("Configurez d'abord les points de tracking (minimum 4)");
+        }
+        return false;
       }
+
+      if (!(window as any).cv) {
+        if (!silent) {
+          toast.error("OpenCV non chargé");
+        }
+        return false;
+      }
+
+      if (!trackingReferenceImageUrl) {
+        if (!silent) {
+          toast.error("Aucune image de référence disponible");
+        }
+        return false;
+      }
+
+      if (!silent) {
+        setIsInitializingTracking(true);
+      }
+
+      try {
+        await initializeTracker();
+        setTrackingActive(true);
+        setHasLostAnchors(false);
+        if (!silent) {
+          toast.success("Tracking activé");
+        }
+        return true;
+      } catch (error) {
+        console.error(error);
+        if (!silent) {
+          toast.error(
+            (error as Error).message ||
+              "Impossible d'initialiser le tracking"
+          );
+        }
+        trackerRef.current?.dispose();
+        trackerRef.current = null;
+        return false;
+      } finally {
+        if (!silent) {
+          setIsInitializingTracking(false);
+        }
+      }
+    },
+    [
+      configuredPoints.length,
+      initializeTracker,
+      streamActive,
+      trackingReferenceImageUrl,
+    ]
+  );
+
+  const stopTracking = useCallback(
+    (options?: { silent?: boolean }) => {
+      setTrackingActive(false);
+      trackerRef.current?.dispose();
+      trackerRef.current = null;
+      smoothingRef.current.reset();
+      lastGoodHomographyRef.current = null;
+      anchorLossFramesRef.current = 0;
+      setHasLostAnchors(false);
+
+      const cv = (window as any).cv;
+      if (cv) {
+        warpResourcesRef.current.overlayMat?.delete?.();
+        warpResourcesRef.current.warpedMat?.delete?.();
+      }
+      warpResourcesRef.current.overlayMat = null;
+      warpResourcesRef.current.warpedMat = null;
+      warpResourcesRef.current.warpedCanvas = null;
+
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+
+      if (!options?.silent) {
+        toast.success("Tracking arrêté");
+      }
+    },
+    []
+  );
+
+  const quickRestartTracking = useCallback(async () => {
+    if (quickRestartingRef.current || !trackingActive) {
+      return;
     }
 
-    toast.success("Tracking arrêté");
+    quickRestartingRef.current = true;
+    stopTracking({ silent: true });
+    await new Promise((resolve) => setTimeout(resolve, 160));
+    const restarted = await startTracking({ silent: true });
+    if (!restarted) {
+      setHasLostAnchors(true);
+    }
+    quickRestartingRef.current = false;
+  }, [startTracking, stopTracking, trackingActive]);
+
+  const handleRepositionAnchors = () => {
+    if (!configuredPoints.length) {
+      toast.error("Aucune configuration d'ancrage disponible");
+      return;
+    }
+
+    wasTrackingBeforeCalibrationRef.current = trackingActive;
+    if (trackingActive) {
+      stopTracking({ silent: true });
+    }
+
+    anchorLossFramesRef.current = 0;
+    setHasLostAnchors(false);
+    setCalibrationTrigger((value) => value + 1);
   };
 
   // BOUCLE DE TRACKING & RENDU
@@ -618,6 +707,34 @@ export default function ARAnchorsMode({
           );
           renderOverlayWithHomography(frozenH);
         }
+
+        if (lastGoodHomographyRef.current) {
+          const lostPointsRecently =
+            !trackingConfident ||
+            !result.isTracking ||
+            result.matchedPoints < minimumContinuationPoints;
+
+          if (lostPointsRecently) {
+            anchorLossFramesRef.current += 1;
+          } else if (anchorLossFramesRef.current !== 0) {
+            anchorLossFramesRef.current = 0;
+            if (hasLostAnchors) {
+              setHasLostAnchors(false);
+            }
+          }
+
+          if (
+            anchorLossFramesRef.current > 12 &&
+            !quickRestartingRef.current &&
+            streamActive
+          ) {
+            if (!hasLostAnchors) {
+              setHasLostAnchors(true);
+            }
+            quickRestartTracking();
+            anchorLossFramesRef.current = 0;
+          }
+        }
       }
 
       animationFrameRef.current = requestAnimationFrame(trackLoop);
@@ -647,6 +764,8 @@ export default function ARAnchorsMode({
     strobeMaxOpacity,
     brightness,
     contrast,
+    hasLostAnchors,
+    quickRestartTracking,
   ]);
 
   const computeOverlayToReference = (
@@ -700,7 +819,7 @@ export default function ARAnchorsMode({
 
   const handleConfigurationReady = async (config: TrackingConfiguration) => {
     if (trackingActive) {
-      stopTracking();
+      stopTracking({ silent: true });
     }
 
     setTrackingReferenceImageUrl(config.referenceImage);
@@ -726,6 +845,8 @@ export default function ARAnchorsMode({
     setTrackingStability(0);
     smoothingRef.current.reset();
     lastGoodHomographyRef.current = null;
+    anchorLossFramesRef.current = 0;
+    setHasLostAnchors(false);
 
     // Reset des ressources OpenCV liées à l’overlay
     const cv = (window as any).cv;
@@ -740,6 +861,15 @@ export default function ARAnchorsMode({
     toast.success(
       `Configuration prête avec ${config.trackingPoints.length} points`
     );
+
+    if (wasTrackingBeforeCalibrationRef.current && streamActive) {
+      wasTrackingBeforeCalibrationRef.current = false;
+      setTimeout(() => {
+        startTracking();
+      }, 200);
+    } else {
+      wasTrackingBeforeCalibrationRef.current = false;
+    }
   };
 
   return (
@@ -792,6 +922,28 @@ export default function ARAnchorsMode({
             </p>
           </div>
         )}
+
+        {hasLostAnchors && (
+          <div className="absolute inset-x-4 bottom-4 z-30 rounded-[22px] border border-amber-200/80 bg-amber-50/95 p-4 shadow-[0_12px_30px_rgba(253,230,138,0.35)] backdrop-blur">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Points de tracking perdus</span>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleRepositionAnchors}
+                className="w-full rounded-full bg-amber-500 text-xs font-semibold uppercase tracking-widest text-amber-950 shadow-[0_10px_24px_-18px_rgba(217,119,6,0.65)] transition hover:bg-amber-400 sm:w-auto"
+              >
+                <LocateFixed className="mr-2 h-4 w-4" />
+                Repositionner les ancres
+              </Button>
+            </div>
+            <p className="mt-2 text-[11px] font-medium uppercase tracking-widest text-amber-700/80">
+              Un recalibrage automatique a été tenté. Replacez les ancres si nécessaire.
+            </p>
+          </div>
+        )}
       </div>
 
       <Alert className="rounded-[28px] border border-white/60 bg-white/75 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
@@ -799,6 +951,20 @@ export default function ARAnchorsMode({
           Mode AR par points : configurez vos ancres (minimum 4, idéalement 6 à 8) puis lancez le tracking pour projeter votre image comme si elle était imprimée.
         </AlertDescription>
       </Alert>
+
+      {hasLostAnchors && (
+        <Alert className="rounded-[28px] border border-amber-200 bg-amber-50/95 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+          <AlertDescription className="flex flex-col gap-2 text-sm font-medium text-amber-900">
+            <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest">
+              <AlertTriangle className="h-4 w-4" />
+              Recalibrage recommandé
+            </span>
+            <span className="text-sm font-normal text-amber-800">
+              Le suivi a perdu une ou plusieurs ancres. Déclenchez le repositionnement pour réaligner vos points de référence sur la feuille.
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <Card className="space-y-6 rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
@@ -813,7 +979,7 @@ export default function ARAnchorsMode({
             ) : !trackingActive ? (
               <Button
                 className="h-12 flex-1 rounded-full bg-primary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
-                onClick={startTracking}
+                onClick={() => startTracking()}
                 disabled={
                   configuredPoints.length < 4 ||
                   isInitializingTracking ||
@@ -826,7 +992,7 @@ export default function ARAnchorsMode({
               <Button
                 className="h-12 flex-1 rounded-full text-xs font-semibold uppercase tracking-widest"
                 variant="destructive"
-                onClick={stopTracking}
+                onClick={() => stopTracking()}
               >
                 Arrêter le tracking
               </Button>
@@ -884,7 +1050,10 @@ export default function ARAnchorsMode({
 
         <div className="space-y-6">
           <Card className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
-            <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
+            <PointTrackingManager
+              onConfigurationReady={handleConfigurationReady}
+              externalCalibrationTrigger={calibrationTrigger}
+            />
           </Card>
         </div>
       </div>

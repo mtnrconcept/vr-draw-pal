@@ -23,26 +23,26 @@ const DrawMasterVR = () => {
   const [brightness, setBrightness] = useState(100);
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-br from-[#f9f7ff] via-white to-[#f2f5ff]">
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-14 top-28 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute right-10 top-20 h-80 w-80 rounded-full bg-secondary/25 blur-3xl" />
         <div className="absolute bottom-16 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-24 sm:px-6 lg:px-8">
-        <Card className="mb-10 flex flex-col gap-6 rounded-[40px] border border-white/60 bg-white/80 p-8 shadow-[var(--shadow-soft)] backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-4">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-20 sm:px-6 lg:px-8">
+        <Card className="mb-12 flex flex-col gap-8 rounded-[40px] border border-white/70 bg-white/85 p-6 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-4 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold uppercase tracking-widest text-primary">
               Studio immersif
             </div>
             <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-5xl">DrawMaster VR</h1>
-            <p className="max-w-2xl text-base leading-relaxed text-muted-foreground">
+            <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground lg:mx-0">
               Composez vos séances de projection et de réalité augmentée dans une interface pensée pour les tablettes et casques VR. Ajustez la grille, activez le strobe et laissez le Ghost Mentor guider vos traits.
             </p>
           </div>
 
-          <div className="flex flex-col gap-4 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/70 to-secondary/12 px-6 py-5 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+          <div className="flex flex-col gap-4 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/80 to-secondary/10 px-6 py-5 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest">
               <span>Mode actif</span>
               <span className="rounded-full bg-white/70 px-3 py-1 text-primary shadow-inner shadow-white/50">{activeMode === "classic" ? "Classic" : activeMode === "ar" ? "AR" : "VR"}</span>
@@ -65,8 +65,8 @@ const DrawMasterVR = () => {
           </div>
         </Card>
 
-        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <Card className="flex flex-col gap-6 rounded-[36px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+        <div className="grid gap-8 lg:grid-cols-[0.98fr_1.02fr]">
+          <Card className="flex flex-col gap-6 rounded-[36px] border border-white/60 bg-white/85 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Modes de dessin</h2>
             <div className="grid gap-3">
               <Button
@@ -138,10 +138,10 @@ const DrawMasterVR = () => {
             />
           </Card>
 
-          <Card className="rounded-[36px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+          <Card className="rounded-[36px] border border-white/70 bg-white/85 p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-6">
             <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as "classic" | "ar" | "vr")}
               className="flex h-full flex-col">
-              <TabsList className="mb-6 grid grid-cols-2 rounded-[24px] border border-white/60 bg-white/70 p-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            <TabsList className="mb-6 grid grid-cols-1 gap-2 rounded-[24px] border border-white/60 bg-white/70 p-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground sm:grid-cols-2">
                 <TabsTrigger value="classic" className="rounded-[20px] px-6 py-3 data-[state=active]:bg-primary data-[state=active]:text-white">
                   Mode Classic
                 </TabsTrigger>
@@ -150,7 +150,7 @@ const DrawMasterVR = () => {
                 </TabsTrigger>
               </TabsList>
 
-              <div className="flex-1">
+              <div className="flex-1 space-y-6">
                 <TabsContent value="classic" className="mt-0 h-full">
                   <ClassicMode
                     referenceImage={referenceImage}
