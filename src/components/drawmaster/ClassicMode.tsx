@@ -150,13 +150,16 @@ const ClassicMode = ({
           <Label>Opacité de l'image</Label>
           <Slider
             value={[opacity]}
-            onValueChange={(value) => setOpacity(value[0])}
+            onValueChange={(value) => !strobeEnabled && setOpacity(value[0])}
             min={0}
             max={100}
             step={1}
             className="mt-2"
+            disabled={strobeEnabled}
           />
-          <span className="text-sm text-muted-foreground">{opacity}%</span>
+          <span className="text-sm text-muted-foreground">
+            {strobeEnabled ? "Contrôlée par le strobe" : `${opacity}%`}
+          </span>
         </div>
 
         <div>
