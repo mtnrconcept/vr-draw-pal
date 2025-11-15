@@ -87,9 +87,11 @@ const DrawMasterVR = () => {
               onStrobeSpeedChange={setStrobeSpeed}
               strobeMinOpacity={strobeMinOpacity}
               strobeMaxOpacity={strobeMaxOpacity}
-              onStrobeRangeChange={(min, max) => {
-                setStrobeMinOpacity(min);
-                setStrobeMaxOpacity(max);
+              onStrobeMinOpacityChange={(value) => {
+                setStrobeMinOpacity(Math.min(value, strobeMaxOpacity));
+              }}
+              onStrobeMaxOpacityChange={(value) => {
+                setStrobeMaxOpacity(Math.max(value, strobeMinOpacity));
               }}
             />
           </Card>
