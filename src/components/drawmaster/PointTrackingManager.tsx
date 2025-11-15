@@ -9,22 +9,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import TrackingCalibration from "./TrackingCalibration";
-import { useTrackingPoints } from "@/hooks/useTrackingPoints";
-import { TrackingPoint } from "@/lib/opencv/tracker";
+import TrackingCalibration, { TrackingCalibrationResult } from "./TrackingCalibration";
+import { useTrackingPoints, TrackingConfiguration } from "@/hooks/useTrackingPoints";
 
 interface PointTrackingManagerProps {
-  onConfigurationReady: (referenceImage: string, points: TrackingPoint[]) => void;
+  onConfigurationReady: (config: TrackingConfiguration) => void;
 }
 
 export default function PointTrackingManager({ onConfigurationReady }: PointTrackingManagerProps) {
   const [isCalibrating, setIsCalibrating] = useState(false);
   const { configurations, currentConfig, saveConfiguration, loadConfiguration } = useTrackingPoints();
 
-  const handleCalibrationComplete = (referenceImage: string, points: TrackingPoint[], name: string) => {
-    const configName = name || `Config ${configurations.length + 1}`;
-    const config = saveConfiguration(configName, referenceImage, points);
-    onConfigurationReady(referenceImage, config.points);
+  const handleCalibrationComplete = (result: TrackingCalibrationResult) => {
+    const configName = result.name || `Config ${configurations.length + 1}`;
+    const config = saveConfiguration({
+      ...result,
+      name: configName
+    });
+    onConfigurationReady(config);
     setIsCalibrating(false);
   };
 
@@ -45,7 +47,7 @@ export default function PointTrackingManager({ onConfigurationReady }: PointTrac
               <div>
                 <p className="font-medium text-sm">{currentConfig.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {currentConfig.points.length} points de tracking
+                  {currentConfig.trackingPoints.length} points de tracking
                 </p>
               </div>
               <Settings className="w-4 h-4 text-primary" />
@@ -75,10 +77,10 @@ export default function PointTrackingManager({ onConfigurationReady }: PointTrac
                 className="w-full justify-start"
                 onClick={() => {
                   loadConfiguration(config);
-                  onConfigurationReady(config.referenceImage, config.points);
+                  onConfigurationReady(config);
                 }}
               >
-                {config.name} ({config.points.length} pts)
+                {config.name} ({config.trackingPoints.length} pts)
               </Button>
             ))}
           </div>
