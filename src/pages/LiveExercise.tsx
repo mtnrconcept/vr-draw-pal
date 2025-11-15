@@ -156,86 +156,94 @@ const LiveExercise = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
-        {/* Header */}
-        <Button
-          variant="ghost"
-          onClick={() => navigate(-1)}
-          className="mb-6"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Retour
-        </Button>
+    <div className="relative min-h-screen overflow-hidden">
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute left-14 top-20 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />
+        <div className="absolute right-12 top-28 h-72 w-72 rounded-full bg-secondary/20 blur-3xl" />
+        <div className="absolute bottom-16 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
+      </div>
 
-        {/* Exercise Info */}
-        <Card className="p-6 mb-6 border-border shadow-[var(--shadow-card)]">
-          <div className="flex items-start justify-between mb-4">
-            <div className="space-y-2 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-3xl font-bold text-card-foreground">{exercise.title}</h1>
-                <Badge className="bg-primary text-primary-foreground">
+      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-24 sm:px-6 lg:px-8">
+        <div className="mb-8 flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => navigate(-1)}
+            className="h-12 rounded-full border border-white/50 bg-white/70 px-5 text-foreground shadow-[var(--shadow-card)] backdrop-blur"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour
+          </Button>
+
+          <div className="hidden rounded-full bg-white/60 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-inner shadow-white/50 sm:block">
+            Atelier immersif DrawMaster
+          </div>
+        </div>
+
+        <Card className="mb-10 rounded-[36px] border border-white/60 bg-white/80 p-8 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex-1 space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-bold text-foreground sm:text-4xl">{exercise.title}</h1>
+                <Badge className="rounded-full bg-primary/20 px-4 py-1 text-sm font-semibold uppercase tracking-widest text-primary">
                   {exercise.difficulty}
                 </Badge>
               </div>
-              <p className="text-muted-foreground">{exercise.description}</p>
+              <p className="text-base leading-relaxed text-muted-foreground">
+                {exercise.description}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {exercise.materials?.map((material, i) => (
+                  <Badge key={i} variant="outline" className="rounded-full border-white/60 bg-white/70 px-4 py-1 text-xs font-medium text-foreground shadow-inner shadow-white/50">
+                    {material}
+                  </Badge>
+                ))}
+              </div>
             </div>
-            <div className="text-right ml-4">
-              <div className="text-2xl font-bold text-primary">
+
+            <div className="flex flex-col items-start gap-3 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/15 via-white/70 to-secondary/10 px-6 py-5 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Progression</div>
+              <div className="text-3xl font-bold text-primary">
                 {currentStep + 1}/{exercise.steps.length}
               </div>
-              <div className="text-sm text-muted-foreground">⏱️ {exercise.duration}</div>
+              <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Durée estimée</div>
+              <div className="rounded-full bg-white/70 px-4 py-1 text-xs font-semibold text-secondary shadow-inner shadow-white/50">
+                ⏱️ {exercise.duration}
+              </div>
             </div>
-          </div>
-
-          {/* Materials */}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {exercise.materials?.map((material, i) => (
-              <Badge key={i} variant="outline" className="border-accent text-accent-foreground">
-                {material}
-              </Badge>
-            ))}
           </div>
         </Card>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Current Step */}
-          <Card className="p-6 border-border shadow-[var(--shadow-card)]">
-            <h2 className="text-xl font-semibold mb-4 text-card-foreground flex items-center">
-              <Sparkles className="mr-2 h-5 w-5 text-primary" />
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <Card className="rounded-[32px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+            <div className="mb-6 flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-primary">
+              <Sparkles className="h-5 w-5" />
               Étape {currentStep + 1}/{exercise.steps.length}
-            </h2>
-            
-            {/* Step-by-step Image */}
+            </div>
+
             {exercise.stepImages && exercise.stepImages[currentStep] && (
-              <div className="mb-4 rounded-lg overflow-hidden border-2 border-primary/20 shadow-lg bg-white">
-                <img 
-                  src={exercise.stepImages[currentStep]} 
+              <div className="mb-6 overflow-hidden rounded-[28px] border border-white/60">
+                <img
+                  src={exercise.stepImages[currentStep]}
                   alt={`Croquis étape ${currentStep + 1}`}
-                  className="w-full h-auto"
+                  className="w-full object-cover"
                 />
-                <div className="p-2 bg-gradient-to-r from-primary/10 to-secondary/10 text-center">
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    📐 Référence visuelle - Étape {currentStep + 1}
-                  </p>
+                <div className="bg-white/70 px-4 py-2 text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  📐 Référence visuelle
                 </div>
               </div>
             )}
-            
-            <div className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg p-6 mb-4">
-              <p className="text-lg leading-relaxed text-card-foreground">
-                {exercise.steps[currentStep]}
-              </p>
+
+            <div className="mb-6 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/80 to-secondary/10 p-6 text-base leading-relaxed text-foreground shadow-inner shadow-white/50">
+              {exercise.steps[currentStep]}
             </div>
 
-            {/* Focus Points */}
             {exercise.focusPoints && exercise.focusPoints.length > 0 && (
-              <div className="mb-4">
-                <h3 className="font-semibold mb-2 text-sm text-muted-foreground">Points d'attention :</h3>
-                <ul className="space-y-1">
+              <div className="mb-6 rounded-[24px] border border-white/60 bg-white/70 p-6 shadow-inner shadow-white/40">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Points d'attention</h3>
+                <ul className="space-y-2 text-sm leading-relaxed text-foreground">
                   {exercise.focusPoints.map((point, i) => (
-                    <li key={i} className="text-sm text-card-foreground flex items-start">
-                      <span className="text-accent mr-2">•</span>
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="mt-1 inline-block h-2 w-2 rounded-full bg-accent" />
                       {point}
                     </li>
                   ))}
@@ -243,22 +251,22 @@ const LiveExercise = () => {
               </div>
             )}
 
-            <Button 
+            <Button
               onClick={completeStep}
               disabled={!exercise.steps || currentStep >= exercise.steps.length - 1}
-              className="w-full bg-primary hover:bg-primary/90"
+              className="h-12 w-full rounded-full bg-gradient-to-r from-primary to-secondary text-sm font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
             >
               <CheckCircle2 className="mr-2 h-4 w-4" />
               Étape terminée
             </Button>
 
             {exercise.steps && currentStep >= exercise.steps.length - 1 && (
-              <div className="mt-4 p-4 bg-accent/10 rounded-lg text-center">
-                <p className="text-accent-foreground font-semibold">🎉 Exercice terminé !</p>
-                <Button 
+              <div className="mt-5 rounded-[24px] border border-accent/40 bg-accent/20 px-6 py-5 text-center text-sm text-accent-foreground">
+                <p className="font-semibold">🎉 Exercice terminé !</p>
+                <Button
                   onClick={() => navigate('/project')}
                   variant="outline"
-                  className="mt-2"
+                  className="mt-3 h-11 rounded-full border-accent/40 bg-white/70 text-xs font-semibold uppercase tracking-widest text-accent shadow-[0_12px_30px_-22px_rgba(139,220,192,0.55)] backdrop-blur"
                 >
                   Passer en mode AR
                 </Button>
@@ -266,39 +274,37 @@ const LiveExercise = () => {
             )}
           </Card>
 
-          {/* Tips & Feedback */}
           <div className="space-y-6">
-            {/* Tips */}
-            <Card className="p-6 border-border shadow-[var(--shadow-card)]">
-              <h2 className="text-xl font-semibold mb-4 text-card-foreground">💡 Conseils</h2>
-              <ul className="space-y-3">
+            <Card className="rounded-[32px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Conseils du coach</h2>
+              <ul className="mt-4 space-y-3">
                 {exercise.tips?.map((tip, i) => (
-                  <li key={i} className="text-sm text-card-foreground bg-muted rounded-lg p-3">
+                  <li key={i} className="rounded-[22px] border border-white/60 bg-white/70 px-4 py-3 text-sm leading-relaxed text-foreground shadow-inner shadow-white/50">
                     {tip}
                   </li>
                 ))}
               </ul>
             </Card>
 
-            {/* AI Feedback */}
-            <Card className="p-6 border-border shadow-[var(--shadow-card)]">
-              <h2 className="text-xl font-semibold mb-4 text-card-foreground flex items-center">
-                <MessageCircle className="mr-2 h-5 w-5 text-secondary" />
+            <Card className="rounded-[32px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+              <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-secondary">
+                <MessageCircle className="h-5 w-5" />
                 Coach IA
-              </h2>
-              
-              <div className="space-y-4">
-                <div className="flex gap-2">
+              </div>
+
+              <div className="mt-5 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <Input
                     placeholder="Posez une question..."
                     value={question}
                     onChange={(e) => setQuestion(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && getFeedback()}
+                    className="h-11 rounded-full border-white/60 bg-white/70 px-5 shadow-inner shadow-white/40"
                   />
-                  <Button 
+                  <Button
                     onClick={() => getFeedback()}
                     disabled={isAnalyzing}
-                    className="bg-secondary hover:bg-secondary/90"
+                    className="h-11 rounded-full bg-secondary px-6 text-xs font-semibold uppercase tracking-widest text-white shadow-[0_16px_36px_-24px_rgba(255,151,118,0.6)] transition hover:scale-[1.01]"
                   >
                     {isAnalyzing ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -309,28 +315,25 @@ const LiveExercise = () => {
                 </div>
 
                 {feedback && (
-                  <div className="bg-gradient-to-br from-secondary/10 to-accent/10 rounded-lg p-4">
-                    <p className="text-sm leading-relaxed text-card-foreground whitespace-pre-wrap">
-                      {feedback}
-                    </p>
+                  <div className="rounded-[24px] border border-white/60 bg-gradient-to-br from-secondary/12 via-white/80 to-accent/15 p-4 text-sm leading-relaxed text-foreground shadow-inner shadow-white/50">
+                    {feedback}
                   </div>
                 )}
               </div>
             </Card>
 
-            {/* Progress */}
-            <Card className="p-6 border-border shadow-[var(--shadow-card)]">
-              <h2 className="text-xl font-semibold mb-4 text-card-foreground">📊 Progression</h2>
-              <div className="space-y-2">
+            <Card className="rounded-[32px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+              <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Progression détaillée</h2>
+              <div className="mt-4 space-y-2">
                 {exercise.steps?.map((step, i) => (
-                  <div 
+                  <div
                     key={i}
-                    className={`p-3 rounded-lg text-sm ${
-                      completedSteps.includes(i) 
-                        ? "bg-accent/20 text-accent-foreground line-through" 
+                    className={`rounded-[20px] px-4 py-3 text-xs font-semibold uppercase tracking-widest transition ${
+                      completedSteps.includes(i)
+                        ? "bg-accent/30 text-accent-foreground line-through"
                         : i === currentStep
-                        ? "bg-primary/20 text-primary-foreground font-semibold"
-                        : "bg-muted text-muted-foreground"
+                        ? "bg-primary/20 text-primary-foreground"
+                        : "bg-white/70 text-muted-foreground"
                     }`}
                   >
                     {i + 1}. {step.substring(0, 50)}...

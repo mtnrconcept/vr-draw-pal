@@ -705,62 +705,62 @@ export default function ARAnchorsMode({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-      <div className="lg:col-span-1 space-y-4">
-        <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
-        <ARWorkflowGuide />
+    <div className="grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
+      <div className="space-y-6">
+        <div className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+          <PointTrackingManager onConfigurationReady={handleConfigurationReady} />
+        </div>
+        <div className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+          <ARWorkflowGuide />
+        </div>
       </div>
 
-      <div className="lg:col-span-3 space-y-4">
-        <Alert>
-          <AlertDescription>
-            Mode AR par Points : configurez vos points de tracking (minimum 4,
-            recommandé 6–8 pour une feuille quasi “imprimée”), puis activez le
-            tracking pour projeter votre image.
+      <div className="space-y-6">
+        <Alert className="rounded-[28px] border border-white/60 bg-white/75 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+          <AlertDescription className="text-sm leading-relaxed text-muted-foreground">
+            Mode AR par points : configurez vos ancres (minimum 4, idéalement 6 à 8) puis lancez le tracking pour projeter votre image comme si elle était imprimée.
           </AlertDescription>
         </Alert>
 
-        <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black">
+        <div className="relative aspect-video w-full overflow-hidden rounded-[32px] border border-white/60 bg-black/85 shadow-[var(--shadow-soft)]">
           <video
             ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
           />
 
           <canvas
             ref={canvasRef}
-            className="absolute inset-0 w-full h-full"
+            className="absolute inset-0 h-full w-full"
           />
 
           {trackingActive && (
-            <div className="absolute top-2 right-2 bg-black/70 text-white p-3 rounded-lg space-y-1">
-              <p className="text-xs font-semibold">Tracking actif</p>
-              <div className="flex items-center gap-2">
-                <div className="w-24 h-2 bg-white/20 rounded-full overflow-hidden">
+            <div className="absolute right-4 top-4 rounded-[20px] border border-white/40 bg-black/70 px-4 py-3 text-white shadow-[0_10px_30px_rgba(15,23,42,0.45)]">
+              <p className="text-xs font-semibold uppercase tracking-widest">Tracking actif</p>
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-2 w-28 overflow-hidden rounded-full bg-white/20">
                   <div
-                    className="h-full bg-primary transition-all"
+                    className="h-full rounded-full bg-primary transition-all"
                     style={{ width: `${trackingStability}%` }}
                   />
                 </div>
-                <span className="text-xs">
-                  {Math.round(trackingStability)}%
-                </span>
+                <span className="text-xs font-semibold">{Math.round(trackingStability)}%</span>
               </div>
-              <p className="text-xs">
-                Points: {matchedPoints}/{configuredPoints.length}
+              <p className="mt-1 text-[10px] uppercase tracking-widest text-white/70">
+                Points : {matchedPoints}/{configuredPoints.length}
               </p>
             </div>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex gap-2">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="flex gap-3">
             {!streamActive ? (
-              <Button className="flex-1" onClick={startCamera}>
+              <Button className="h-12 flex-1 rounded-full bg-gradient-to-r from-primary to-secondary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]" onClick={startCamera}>
                 Activer la caméra
               </Button>
             ) : !trackingActive ? (
               <Button
-                className="flex-1"
+                className="h-12 flex-1 rounded-full bg-primary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
                 onClick={startTracking}
                 disabled={
                   configuredPoints.length < 4 ||
@@ -768,13 +768,11 @@ export default function ARAnchorsMode({
                   !trackingReferenceImageUrl
                 }
               >
-                {isInitializingTracking
-                  ? "Initialisation..."
-                  : "Démarrer le tracking"}
+                {isInitializingTracking ? "Initialisation..." : "Démarrer le tracking"}
               </Button>
             ) : (
               <Button
-                className="flex-1"
+                className="h-12 flex-1 rounded-full text-xs font-semibold uppercase tracking-widest"
                 variant="destructive"
                 onClick={stopTracking}
               >
@@ -784,15 +782,12 @@ export default function ARAnchorsMode({
           </div>
 
           {trackingActive && (
-            <>
-              <Card className="p-3">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="opacity" className="text-sm">
-                      {strobeEnabled
-                        ? "Opacité contrôlée par le strobe"
-                        : `Opacité: ${overlayOpacity[0]}%`}
-                    </Label>
+            <div className="grid gap-4">
+              <Card className="rounded-[24px] border border-white/60 bg-white/75 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    <span>{strobeEnabled ? "Opacité contrôlée par le strobe" : "Opacité"}</span>
+                    {!strobeEnabled && <span className="text-primary">{overlayOpacity[0]}%</span>}
                   </div>
                   <Slider
                     id="opacity"
@@ -808,16 +803,14 @@ export default function ARAnchorsMode({
                 </div>
               </Card>
 
-              <Card className="p-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="debug-points" className="text-sm">
-                    Points de debug
-                  </Label>
+              <Card className="rounded-[24px] border border-white/60 bg-white/75 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl">
+                <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <span>Points de debug</span>
                   <div className="flex items-center gap-2">
                     {showDebugPoints ? (
-                      <Eye className="w-4 h-4 text-primary" />
+                      <Eye className="h-4 w-4 text-primary" />
                     ) : (
-                      <EyeOff className="w-4 h-4 text-muted-foreground" />
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
                     )}
                     <Switch
                       id="debug-points"
@@ -827,19 +820,15 @@ export default function ARAnchorsMode({
                   </div>
                 </div>
               </Card>
-            </>
+            </div>
           )}
         </div>
 
         {trackingActive && (
-          <Card className="p-3 bg-primary/10 border-primary">
-            <p className="font-semibold text-sm">
-              Tracking 2D stabilisé haute précision
-            </p>
-            <p className="text-xs text-muted-foreground">
-              L&apos;image est verrouillée sur la feuille avec lissage
-              adaptatif et maintien de la dernière pose fiable pour une
-              sensation quasi “imprimée”.
+          <Card className="rounded-[28px] border border-primary/40 bg-primary/15 p-6 text-sm text-primary-foreground shadow-[var(--shadow-card)]">
+            <p className="font-semibold uppercase tracking-widest">Tracking 2D stabilisé</p>
+            <p className="mt-2 text-xs leading-relaxed text-primary-foreground/80">
+              L'image reste verrouillée sur votre feuille grâce au lissage adaptatif et au maintien de la dernière pose fiable pour une sensation quasi imprimée.
             </p>
           </Card>
         )}

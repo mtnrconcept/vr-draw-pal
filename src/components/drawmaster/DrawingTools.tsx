@@ -99,12 +99,11 @@ const DrawingTools = ({
   };
 
   return (
-    <div className="mt-6 space-y-4">
-      <h3 className="font-semibold">Outils de dessin</h3>
-
-      {/* Image upload */}
-      <div>
-        <Label htmlFor="image-upload">Image de référence</Label>
+    <div className="space-y-6">
+      <div className="rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
+        <Label htmlFor="image-upload" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Image de référence
+        </Label>
         <input
           id="image-upload"
           type="file"
@@ -114,20 +113,19 @@ const DrawingTools = ({
         />
         <Button
           variant="outline"
-          className="w-full mt-2"
+          className="mt-4 h-11 w-full rounded-full border border-dashed border-primary/40 bg-white/70 px-6 text-xs font-semibold uppercase tracking-widest text-primary shadow-[0_12px_30px_-22px_rgba(92,80,255,0.5)] backdrop-blur transition hover:bg-white"
           onClick={() => document.getElementById("image-upload")?.click()}
         >
-          <Upload className="w-4 h-4 mr-2" />
+          <Upload className="mr-2 h-4 w-4" />
           {referenceImage ? "Changer l'image" : "Charger une image"}
         </Button>
       </div>
 
-      {/* Grid */}
-      <Card className="p-3 space-y-2">
+      <Card className="space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Grid className="w-4 h-4" />
-            <Label>Grille</Label>
+          <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+            <Grid className="h-4 w-4 text-primary" />
+            Grille
           </div>
           <Switch
             checked={gridEnabled}
@@ -135,19 +133,25 @@ const DrawingTools = ({
           />
         </div>
         {gridEnabled && (
-          <div>
-            <Label className="text-xs">Opacité</Label>
-            <Slider
-              value={[gridOpacity]}
-              onValueChange={(value) => onGridOpacityChange(value[0])}
-              min={0}
-              max={100}
-              step={1}
-              className="mt-1"
-            />
-            <span className="text-xs text-muted-foreground">{gridOpacity}%</span>
-            <div className="mt-3">
-              <Label className="text-xs">Nombre de carreaux</Label>
+          <div className="space-y-4 rounded-[22px] border border-white/50 bg-white/60 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-inner shadow-white/50">
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Opacité</span>
+                <span className="text-primary">{gridOpacity}%</span>
+              </div>
+              <Slider
+                value={[gridOpacity]}
+                onValueChange={(value) => onGridOpacityChange(value[0])}
+                min={0}
+                max={100}
+                step={1}
+              />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Nombre de carreaux</span>
+                <span className="text-primary">{gridTileCount} × {gridTileCount}</span>
+              </div>
               <Slider
                 value={[gridTileCount]}
                 onValueChange={(value) =>
@@ -156,22 +160,17 @@ const DrawingTools = ({
                 min={2}
                 max={20}
                 step={1}
-                className="mt-1"
               />
-              <span className="text-xs text-muted-foreground">
-                {gridTileCount} × {gridTileCount}
-              </span>
             </div>
           </div>
         )}
       </Card>
 
-      {/* Strobe */}
-      <Card className="p-3 space-y-2">
+      <Card className="space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4" />
-            <Label>Strobe</Label>
+          <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+            <Zap className="h-4 w-4 text-secondary" />
+            Strobe
           </div>
           <Switch
             checked={strobeEnabled}
@@ -179,112 +178,109 @@ const DrawingTools = ({
           />
         </div>
         {strobeEnabled && (
-          <div>
-            <Label className="text-xs">Vitesse (Hz)</Label>
-            <Slider
-              value={[strobeSpeed]}
-              onValueChange={(value) => onStrobeSpeedChange(value[0])}
-              min={1}
-              max={10}
-              step={0.5}
-              className="mt-1"
-            />
-            <span className="text-xs text-muted-foreground">{strobeSpeed} Hz</span>
-            <div className="mt-3 space-y-3">
-              <div>
-                <Label className="text-xs">Opacité minimale</Label>
-                <Slider
-                  value={[strobeMinOpacity]}
-                  onValueChange={(value) =>
-                    onStrobeMinOpacityChange(
-                      Math.min(Math.round(value[0]), strobeMaxOpacity)
-                    )
-                  }
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="mt-1"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {strobeMinOpacity}%
-                </span>
+          <div className="space-y-4 rounded-[22px] border border-white/50 bg-white/60 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-inner shadow-white/50">
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Vitesse</span>
+                <span className="text-secondary">{strobeSpeed} Hz</span>
               </div>
-              <div>
-                <Label className="text-xs">Opacité maximale</Label>
-                <Slider
-                  value={[strobeMaxOpacity]}
-                  onValueChange={(value) =>
-                    onStrobeMaxOpacityChange(
-                      Math.max(Math.round(value[0]), strobeMinOpacity)
-                    )
-                  }
-                  min={0}
-                  max={100}
-                  step={1}
-                  className="mt-1"
-                />
-                <span className="text-xs text-muted-foreground">
-                  {strobeMaxOpacity}%
-                </span>
+              <Slider
+                value={[strobeSpeed]}
+                onValueChange={(value) => onStrobeSpeedChange(value[0])}
+                min={1}
+                max={10}
+                step={0.5}
+              />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Opacité minimale</span>
+                <span className="text-secondary">{strobeMinOpacity}%</span>
               </div>
+              <Slider
+                value={[strobeMinOpacity]}
+                onValueChange={(value) =>
+                  onStrobeMinOpacityChange(
+                    Math.min(Math.round(value[0]), strobeMaxOpacity)
+                  )
+                }
+                min={0}
+                max={100}
+                step={1}
+              />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Opacité maximale</span>
+                <span className="text-secondary">{strobeMaxOpacity}%</span>
+              </div>
+              <Slider
+                value={[strobeMaxOpacity]}
+                onValueChange={(value) =>
+                  onStrobeMaxOpacityChange(
+                    Math.max(Math.round(value[0]), strobeMinOpacity)
+                  )
+                }
+                min={0}
+                max={100}
+                step={1}
+              />
             </div>
           </div>
         )}
       </Card>
 
-      {/* Filters */}
-      <Card className="p-3 space-y-3">
-        <div className="flex items-center gap-2">
-          <Palette className="w-4 h-4" />
-          <Label>Filtres</Label>
+      <Card className="space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
+        <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+          <Palette className="h-4 w-4 text-accent" />
+          Filtres
         </div>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Contrast className="w-3 h-3" />
-            <Label className="text-xs">Contraste</Label>
+        <div className="space-y-3 rounded-[22px] border border-white/50 bg-white/60 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-inner shadow-white/40">
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span>Contraste</span>
+              <span className="text-accent">{contrast}%</span>
+            </div>
+            <Slider
+              value={[contrast]}
+              onValueChange={(value) => setContrast(value[0])}
+              min={0}
+              max={200}
+              step={1}
+            />
           </div>
-          <Slider
-            value={[contrast]}
-            onValueChange={(value) => setContrast(value[0])}
-            min={0}
-            max={200}
-            step={1}
-          />
-          <span className="text-xs text-muted-foreground">{contrast}%</span>
-        </div>
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Sun className="w-3 h-3" />
-            <Label className="text-xs">Luminosité</Label>
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span>Luminosité</span>
+              <span className="text-accent">{brightness}%</span>
+            </div>
+            <Slider
+              value={[brightness]}
+              onValueChange={(value) => setBrightness(value[0])}
+              min={0}
+              max={200}
+              step={1}
+            />
           </div>
-          <Slider
-            value={[brightness]}
-            onValueChange={(value) => setBrightness(value[0])}
-            min={0}
-            max={200}
-            step={1}
-          />
-          <span className="text-xs text-muted-foreground">{brightness}%</span>
         </div>
       </Card>
 
-      {/* Camera controls */}
-      <div className="space-y-2">
+      <div className="space-y-3 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <Button
           variant="outline"
-          className="w-full"
+          className="h-11 w-full rounded-full border-white/60 bg-white/70 px-6 text-xs font-semibold uppercase tracking-widest text-foreground shadow-[0_12px_30px_-22px_rgba(15,23,42,0.25)] backdrop-blur transition hover:bg-white"
           onClick={toggleTorch}
         >
-          <Flashlight className="w-4 h-4 mr-2" />
+          <Flashlight className="mr-2 h-4 w-4" />
           {torchEnabled ? "Éteindre" : "Allumer"} la lampe
         </Button>
 
         <Button
           variant={timelapseRecording ? "destructive" : "outline"}
-          className="w-full"
+          className={`h-11 w-full rounded-full px-6 text-xs font-semibold uppercase tracking-widest ${timelapseRecording ? "" : "border-white/60 bg-white/70 text-foreground shadow-[0_12px_30px_-22px_rgba(15,23,42,0.25)] backdrop-blur transition hover:bg-white"}`}
           onClick={toggleTimelapse}
         >
-          <Video className="w-4 h-4 mr-2" />
+          <Video className="mr-2 h-4 w-4" />
           {timelapseRecording ? "Arrêter" : "Démarrer"} Time-lapse
         </Button>
       </div>
