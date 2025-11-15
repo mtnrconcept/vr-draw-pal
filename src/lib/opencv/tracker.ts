@@ -14,6 +14,19 @@ export interface TrackingResult {
   stability: number;
 }
 
+/**
+ * Options d'initialisation avancées pour un tracking “type Mocha”.
+ * - maskImageData : Image binaire (ou dessinée en blanc sur fond noir) de la zone à suivre
+ *                   (par ex. ton tracé Bézier rasterisé dans un <canvas>).
+ * - autoFeaturePoints : nombre de points supplémentaires à détecter automatiquement
+ *                       à l’intérieur du masque (en plus de tes 4 coins).
+ */
+export interface TrackingInitializationOptions {
+  maskImageData?: ImageData;
+  autoFeaturePoints?: number;
+  minAutoFeatureDistance?: number;
+}
+
 interface TemplateInfo {
   mat: any;
   width: number;
@@ -25,10 +38,12 @@ interface TemplateInfo {
 export class OpenCVTracker {
   private cv: any;
   private referencePoints: TrackingPoint[] = [];
-  private templates: TemplateInfo[] = [];
+  private templates: (TemplateInfo | null)[] = [];
   private lastPositions: { x: number; y: number }[] = [];
   private prevGray: any | null = null;
+  private roiMask: any | null = null; // Mat binaire de la zone de la feuille
   private initialized = false;
+  private lastHomography: number[] | null = null; // pour lisser l’homographie
 
   constructor() {
     this.cv = (window as any).cv;
@@ -37,7 +52,18 @@ export class OpenCVTracker {
     }
   }
 
-  initializeReferencePoints(imageData: ImageData, points: TrackingPoint[]) {
+  /**
+   * Initialise le tracker à partir de:
+   * - imageData : frame de référence (ta feuille avec les points dessinés)
+   * - points : les 4 points (coins) posés par l’utilisateur
+   * - options.maskImageData : masque (Bézier rasterisé) pour limiter la zone de tracking
+   * - options.autoFeaturePoints : nb de features supplémentaires à détecter dans le masque
+   */
+  initializeReferencePoints(
+    imageData: ImageData,
+    points: TrackingPoint[],
+    options?: TrackingInitializationOptions
+  ) {
     this.dispose();
 
     if (points.length < 4) {
@@ -48,6 +74,25 @@ export class OpenCVTracker {
     const gray = new this.cv.Mat();
     this.cv.cvtColor(src, gray, this.cv.COLOR_RGBA2GRAY);
 
+    // --- Construction éventuelle du masque ROI à partir d’un ImageData (masque Bézier) ---
+    this.roiMask && this.roiMask.delete();
+    this.roiMask = null;
+
+    if (options?.maskImageData) {
+      const maskSrc = this.cv.matFromImageData(options.maskImageData);
+      const maskGray = new this.cv.Mat();
+      this.cv.cvtColor(maskSrc, maskGray, this.cv.COLOR_RGBA2GRAY);
+
+      const maskBinary = new this.cv.Mat();
+      this.cv.threshold(maskGray, maskBinary, 127, 255, this.cv.THRESH_BINARY);
+
+      this.roiMask = maskBinary;
+
+      maskSrc.delete();
+      maskGray.delete();
+      // maskBinary gardé dans this.roiMask
+    }
+
     this.referencePoints = points.map(point => ({ ...point }));
     this.templates = [];
     this.lastPositions = points.map(point => ({ x: point.x, y: point.y }));
@@ -55,14 +100,22 @@ export class OpenCVTracker {
       this.prevGray.delete();
       this.prevGray = null;
     }
+    this.lastHomography = null;
 
     const minDim = Math.min(gray.cols, gray.rows);
     const baseTemplateSize = Math.max(24, Math.min(120, Math.round(minDim * 0.08)));
 
+    // --- Création des templates autour des points manuels (coins) ---
     for (const point of points) {
       const half = Math.floor(baseTemplateSize / 2);
-      const startX = Math.max(0, Math.min(gray.cols - baseTemplateSize, Math.round(point.x) - half));
-      const startY = Math.max(0, Math.min(gray.rows - baseTemplateSize, Math.round(point.y) - half));
+      const startX = Math.max(
+        0,
+        Math.min(gray.cols - baseTemplateSize, Math.round(point.x) - half)
+      );
+      const startY = Math.max(
+        0,
+        Math.min(gray.rows - baseTemplateSize, Math.round(point.y) - half)
+      );
 
       const rect = new this.cv.Rect(startX, startY, baseTemplateSize, baseTemplateSize);
       const roi = gray.roi(rect);
@@ -83,10 +136,66 @@ export class OpenCVTracker {
       roi.delete();
     }
 
+    // --- Option Mocha-like : auto-features à l’intérieur du masque (Bézier) ---
+    const autoCount = options?.autoFeaturePoints ?? 120;
+    const minAutoDist = options?.minAutoFeatureDistance ?? Math.max(5, Math.round(minDim * 0.01));
+
+    if (this.roiMask && autoCount > 0) {
+      const corners = new this.cv.Mat();
+      this.cv.goodFeaturesToTrack(
+        gray,
+        corners,
+        autoCount,
+        0.01,
+        minAutoDist,
+        this.roiMask
+      );
+
+      const cornersData = corners.data32F;
+      const existing = [...this.referencePoints];
+
+      for (let i = 0; i < corners.rows; i++) {
+        const x = cornersData[i * 2];
+        const y = cornersData[i * 2 + 1];
+
+        // Évite de coller de nouveaux points trop près des 4 coins
+        let tooClose = false;
+        for (const p of existing) {
+          const dx = p.x - x;
+          const dy = p.y - y;
+          if (dx * dx + dy * dy < minAutoDist * minAutoDist) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (tooClose) continue;
+
+        const id = `auto_${i}_${Date.now()}`;
+        this.referencePoints.push({ id, x, y, label: "auto" });
+        this.lastPositions.push({ x, y });
+        // Pas de template pour ces points auto : purement optical flow
+        this.templates.push(null);
+      }
+
+      corners.delete();
+    }
+
     src.delete();
     gray.delete();
 
     this.initialized = true;
+  }
+
+  // --- Helper : vérifie si un point est à l’intérieur du masque ROI (feuille) ---
+  private isInsideMask(x: number, y: number): boolean {
+    if (!this.roiMask) return true;
+    const xi = Math.round(x);
+    const yi = Math.round(y);
+    if (xi < 0 || yi < 0 || xi >= this.roiMask.cols || yi >= this.roiMask.rows) {
+      return false;
+    }
+    const ptr = this.roiMask.ucharPtr(yi, xi);
+    return ptr[0] > 0;
   }
 
   private matchTemplateAtIndex(
@@ -95,6 +204,10 @@ export class OpenCVTracker {
     searchScale = 1
   ): { x: number; y: number; score: number } | null {
     const template = this.templates[idx];
+    if (!template) {
+      // point “auto” sans template → rien à faire ici
+      return null;
+    }
     const lastPosition = this.lastPositions[idx];
 
     const baseRadius = Math.max(template.width, template.height);
@@ -159,12 +272,21 @@ export class OpenCVTracker {
     const matchedY =
       matchTopLeftY + template.height / 2 + template.offsetY;
 
+    if (!this.isInsideMask(matchedX, matchedY)) {
+      return null;
+    }
+
     return { x: matchedX, y: matchedY, score: minMax.maxVal };
   }
 
   trackFrame(frameData: ImageData): TrackingResult {
     if (!this.initialized || this.templates.length === 0) {
-      return { isTracking: false, homography: null, matchedPoints: 0, stability: 0 };
+      return {
+        isTracking: false,
+        homography: null,
+        matchedPoints: 0,
+        stability: 0
+      };
     }
 
     const frame = this.cv.matFromImageData(frameData);
@@ -218,22 +340,22 @@ export class OpenCVTracker {
         if (statusData[idx] === 1) {
           const x = nextData[idx * 2];
           const y = nextData[idx * 2 + 1];
-          if (Number.isFinite(x) && Number.isFinite(y)) {
-            if (x >= 0 && y >= 0 && x < gray.cols && y < gray.rows) {
-              this.lastPositions[idx] = { x, y };
-              const stabilityScore = Math.max(
-                0,
-                Math.min(1, 1 - (errData[idx] || 0) / 50)
-              );
-              srcPoints.push(
-                this.referencePoints[idx].x,
-                this.referencePoints[idx].y
-              );
-              dstPoints.push(x, y);
-              matchedPoints += 1;
-              stabilitySum += stabilityScore;
-              successfulIdx.add(idx);
-            }
+          if (
+            Number.isFinite(x) &&
+            Number.isFinite(y) &&
+            x >= 0 &&
+            y >= 0 &&
+            x < gray.cols &&
+            y < gray.rows &&
+            this.isInsideMask(x, y)
+          ) {
+            this.lastPositions[idx] = { x, y };
+            const stabilityScore = Math.max(0, Math.min(1, 1 - (errData[idx] || 0) / 50));
+            srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
+            dstPoints.push(x, y);
+            matchedPoints += 1;
+            stabilitySum += stabilityScore;
+            successfulIdx.add(idx);
           }
         }
       }
@@ -242,10 +364,9 @@ export class OpenCVTracker {
       nextPts.delete();
       status.delete();
       err.delete();
-      // TermCriteria and Size are lightweight JS objects in OpenCV.js (no delete)
     }
 
-    // Fallback template matching for missing points or initial frame
+    // Fallback template matching (pour les points qui ont échoué en optical flow)
     for (let idx = 0; idx < this.templates.length; idx += 1) {
       if (successfulIdx.has(idx)) {
         continue;
@@ -262,6 +383,7 @@ export class OpenCVTracker {
       }
     }
 
+    // Dernier fallback avec searchArea plus large
     if (matchedPoints < 4) {
       for (let idx = 0; idx < this.templates.length; idx += 1) {
         if (successfulIdx.has(idx)) {
@@ -271,10 +393,7 @@ export class OpenCVTracker {
         const match = this.matchTemplateAtIndex(gray, idx, 2.5);
         if (match) {
           this.lastPositions[idx] = { x: match.x, y: match.y };
-          srcPoints.push(
-            this.referencePoints[idx].x,
-            this.referencePoints[idx].y
-          );
+          srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
           dstPoints.push(match.x, match.y);
           matchedPoints += 1;
           stabilitySum += match.score;
@@ -293,10 +412,22 @@ export class OpenCVTracker {
       try {
         const H = this.cv.findHomography(srcMat, dstMat, this.cv.RANSAC, 5.0);
         if (!H.empty()) {
-          homography = [];
+          const currentH: number[] = [];
           for (let i = 0; i < 9; i++) {
-            homography.push(H.doubleAt(Math.floor(i / 3), i % 3));
+            currentH.push(H.doubleAt(Math.floor(i / 3), i % 3));
           }
+
+          // Lissage exponentiel de l’homographie → tracking plus “fluide”
+          const alpha = 0.85;
+          if (this.lastHomography) {
+            homography = currentH.map(
+              (v, i) => alpha * v + (1 - alpha) * this.lastHomography![i]
+            );
+          } else {
+            homography = currentH;
+          }
+          this.lastHomography = homography.slice();
+
           stability = Math.min(100, (stabilitySum / matchedPoints) * 100);
         }
         H.delete();
@@ -325,7 +456,11 @@ export class OpenCVTracker {
   }
 
   dispose() {
-    this.templates.forEach(template => template.mat.delete());
+    this.templates.forEach(template => {
+      if (template) {
+        template.mat.delete();
+      }
+    });
     this.templates = [];
     this.referencePoints = [];
     this.lastPositions = [];
@@ -333,6 +468,11 @@ export class OpenCVTracker {
       this.prevGray.delete();
       this.prevGray = null;
     }
+    if (this.roiMask) {
+      this.roiMask.delete();
+      this.roiMask = null;
+    }
+    this.lastHomography = null;
     this.initialized = false;
   }
 
@@ -370,17 +510,11 @@ export class OpenCVTracker {
     // Détection de contours
     const contours = new cv.MatVector();
     const hierarchy = new cv.Mat();
-    cv.findContours(
-      binary,
-      contours,
-      hierarchy,
-      cv.RETR_EXTERNAL,
-      cv.CHAIN_APPROX_SIMPLE
-    );
+    cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
     const markers: TrackingPoint[] = [];
-    const minArea = (imageData.width * imageData.height) * 0.0001; // 0.01% de l'image
-    const maxArea = (imageData.width * imageData.height) * 0.01;   // 1% de l'image
+    const minArea = imageData.width * imageData.height * 0.0001; // 0.01% de l'image
+    const maxArea = imageData.width * imageData.height * 0.01; // 1% de l'image
 
     // Chercher les contours qui ressemblent à des marqueurs
     for (let i = 0; i < contours.size(); i++) {
@@ -432,7 +566,7 @@ export class OpenCVTracker {
       // Réorganiser pour avoir: TL, TR, BR, BL
       const topTwo = markers.slice(0, 2).sort((a, b) => a.x - b.x);
       const bottomTwo = markers.slice(2, 4).sort((a, b) => b.x - a.x).reverse();
-      
+
       const sorted = [...topTwo, ...bottomTwo];
       sorted.forEach((marker, idx) => {
         marker.label = `Point ${idx + 1}`;
