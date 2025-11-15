@@ -4,8 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Camera, Undo, Check, X, Upload } from "lucide-react";
-import { toast } from "sonner";
 import { TrackingPoint } from "@/lib/opencv/tracker";
+
+// Simple toast replacement
+const toast = {
+  success: (msg: string) => console.log("✓", msg),
+  error: (msg: string) => console.error("✗", msg),
+  warning: (msg: string) => console.warn("⚠", msg)
+};
 
 interface TrackingCalibrationProps {
   onComplete: (result: TrackingCalibrationResult) => void;
