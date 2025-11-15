@@ -14,11 +14,20 @@ export interface TrackingResult {
   stability: number;
 }
 
+interface TemplateInfo {
+  mat: any;
+  width: number;
+  height: number;
+  offsetX: number;
+  offsetY: number;
+}
+
 export class OpenCVTracker {
   private cv: any;
-  private referenceDescriptors: any = null;
-  private referenceKeypoints: any = null;
-  private detector: any = null;
+  private referencePoints: TrackingPoint[] = [];
+  private templates: TemplateInfo[] = [];
+  private lastPositions: { x: number; y: number }[] = [];
+  private initialized = false;
 
   constructor() {
     this.cv = (window as any).cv;
@@ -28,26 +37,55 @@ export class OpenCVTracker {
   }
 
   initializeReferencePoints(imageData: ImageData, points: TrackingPoint[]) {
+    this.dispose();
+
+    if (points.length < 4) {
+      throw new Error("At least 4 tracking points are required");
+    }
+
     const src = this.cv.matFromImageData(imageData);
     const gray = new this.cv.Mat();
     this.cv.cvtColor(src, gray, this.cv.COLOR_RGBA2GRAY);
 
-    // Create ORB detector
-    this.detector = new this.cv.ORB(500);
-    this.referenceKeypoints = new this.cv.KeyPointVector();
-    this.referenceDescriptors = new this.cv.Mat();
+    this.referencePoints = points.map(point => ({ ...point }));
+    this.templates = [];
+    this.lastPositions = points.map(point => ({ x: point.x, y: point.y }));
 
-    // Detect and compute
-    this.detector.detectAndCompute(gray, new this.cv.Mat(), this.referenceKeypoints, this.referenceDescriptors);
+    const minDim = Math.min(gray.cols, gray.rows);
+    const baseTemplateSize = Math.max(24, Math.min(120, Math.round(minDim * 0.08)));
+
+    for (const point of points) {
+      const half = Math.floor(baseTemplateSize / 2);
+      const startX = Math.max(0, Math.min(gray.cols - baseTemplateSize, Math.round(point.x) - half));
+      const startY = Math.max(0, Math.min(gray.rows - baseTemplateSize, Math.round(point.y) - half));
+
+      const rect = new this.cv.Rect(startX, startY, baseTemplateSize, baseTemplateSize);
+      const roi = gray.roi(rect);
+      const template = new this.cv.Mat();
+      roi.copyTo(template);
+
+      const centerX = startX + template.cols / 2;
+      const centerY = startY + template.rows / 2;
+
+      this.templates.push({
+        mat: template,
+        width: template.cols,
+        height: template.rows,
+        offsetX: point.x - centerX,
+        offsetY: point.y - centerY
+      });
+
+      roi.delete();
+    }
 
     src.delete();
     gray.delete();
 
-    console.log(`Initialized ${this.referenceKeypoints.size()} reference keypoints`);
+    this.initialized = true;
   }
 
   trackFrame(frameData: ImageData): TrackingResult {
-    if (!this.referenceDescriptors || !this.detector) {
+    if (!this.initialized || this.templates.length === 0) {
       return { isTracking: false, homography: null, matchedPoints: 0, stability: 0 };
     }
 
@@ -55,42 +93,83 @@ export class OpenCVTracker {
     const gray = new this.cv.Mat();
     this.cv.cvtColor(frame, gray, this.cv.COLOR_RGBA2GRAY);
 
-    // Detect current frame keypoints
-    const currentKeypoints = new this.cv.KeyPointVector();
-    const currentDescriptors = new this.cv.Mat();
-    this.detector.detectAndCompute(gray, new this.cv.Mat(), currentKeypoints, currentDescriptors);
+    const srcPoints: number[] = [];
+    const dstPoints: number[] = [];
+    let matchedPoints = 0;
+    let stabilitySum = 0;
 
-    // Match features
-    const matches = new this.cv.DMatchVector();
-    const matcher = new this.cv.BFMatcher(this.cv.NORM_HAMMING, true);
-    matcher.match(this.referenceDescriptors, currentDescriptors, matches);
+    this.templates.forEach((template, idx) => {
+      const lastPosition = this.lastPositions[idx];
+      const baseRadius = Math.max(template.width, template.height);
+      const searchRadius = Math.min(
+        Math.max(40, Math.round(baseRadius * 1.5)),
+        Math.max(gray.cols, gray.rows)
+      );
 
-    // Filter good matches (distance < 50)
-    const goodMatches: any[] = [];
-    for (let i = 0; i < matches.size(); i++) {
-      const match = matches.get(i);
-      if (match.distance < 50) {
-        goodMatches.push(match);
+      const predictedTopLeftX = lastPosition.x - template.width / 2 - template.offsetX;
+      const predictedTopLeftY = lastPosition.y - template.height / 2 - template.offsetY;
+
+      let searchX = Math.round(predictedTopLeftX - searchRadius);
+      let searchY = Math.round(predictedTopLeftY - searchRadius);
+      let searchW = template.width + searchRadius * 2;
+      let searchH = template.height + searchRadius * 2;
+
+      if (searchX < 0) {
+        searchW += searchX;
+        searchX = 0;
       }
-    }
+      if (searchY < 0) {
+        searchH += searchY;
+        searchY = 0;
+      }
+      if (searchX + searchW > gray.cols) {
+        searchW = gray.cols - searchX;
+      }
+      if (searchY + searchH > gray.rows) {
+        searchH = gray.rows - searchY;
+      }
 
-    let homography = null;
+      if (searchW < template.width || searchH < template.height) {
+        return;
+      }
+
+      const rect = new this.cv.Rect(searchX, searchY, searchW, searchH);
+      const roi = gray.roi(rect);
+      const resultCols = searchW - template.width + 1;
+      const resultRows = searchH - template.height + 1;
+
+      if (resultCols <= 0 || resultRows <= 0) {
+        roi.delete();
+        return;
+      }
+
+      const result = new this.cv.Mat();
+      this.cv.matchTemplate(roi, template.mat, result, this.cv.TM_CCOEFF_NORMED);
+      const minMax = this.cv.minMaxLoc(result);
+
+      if (minMax.maxVal > 0.5) {
+        const matchTopLeftX = searchX + minMax.maxLoc.x;
+        const matchTopLeftY = searchY + minMax.maxLoc.y;
+        const matchedX = matchTopLeftX + template.width / 2 + template.offsetX;
+        const matchedY = matchTopLeftY + template.height / 2 + template.offsetY;
+
+        this.lastPositions[idx] = { x: matchedX, y: matchedY };
+        srcPoints.push(this.referencePoints[idx].x, this.referencePoints[idx].y);
+        dstPoints.push(matchedX, matchedY);
+        matchedPoints += 1;
+        stabilitySum += minMax.maxVal;
+      }
+
+      roi.delete();
+      result.delete();
+    });
+
+    let homography: number[] | null = null;
     let stability = 0;
 
-    // Need at least 4 matches for homography
-    if (goodMatches.length >= 4) {
-      const srcPoints: number[] = [];
-      const dstPoints: number[] = [];
-
-      for (const match of goodMatches) {
-        const refKp = this.referenceKeypoints.get(match.queryIdx);
-        const currKp = currentKeypoints.get(match.trainIdx);
-        srcPoints.push(refKp.pt.x, refKp.pt.y);
-        dstPoints.push(currKp.pt.x, currKp.pt.y);
-      }
-
-      const srcMat = this.cv.matFromArray(goodMatches.length, 1, this.cv.CV_32FC2, srcPoints);
-      const dstMat = this.cv.matFromArray(goodMatches.length, 1, this.cv.CV_32FC2, dstPoints);
+    if (matchedPoints >= 4) {
+      const srcMat = this.cv.matFromArray(matchedPoints, 1, this.cv.CV_32FC2, srcPoints);
+      const dstMat = this.cv.matFromArray(matchedPoints, 1, this.cv.CV_32FC2, dstPoints);
 
       try {
         const H = this.cv.findHomography(srcMat, dstMat, this.cv.RANSAC, 5.0);
@@ -99,36 +178,33 @@ export class OpenCVTracker {
           for (let i = 0; i < 9; i++) {
             homography.push(H.doubleAt(Math.floor(i / 3), i % 3));
           }
-          stability = Math.min(100, (goodMatches.length / 50) * 100);
+          stability = Math.min(100, (stabilitySum / matchedPoints) * 100);
         }
         H.delete();
-      } catch (e) {
-        console.error("Homography computation failed:", e);
+      } catch (error) {
+        console.error("Homography computation failed:", error);
       }
 
       srcMat.delete();
       dstMat.delete();
     }
 
-    // Cleanup
     frame.delete();
     gray.delete();
-    currentKeypoints.delete();
-    currentDescriptors.delete();
-    matches.delete();
-    matcher.delete();
 
     return {
       isTracking: homography !== null,
       homography,
-      matchedPoints: goodMatches.length,
+      matchedPoints,
       stability
     };
   }
 
   dispose() {
-    if (this.referenceDescriptors) this.referenceDescriptors.delete();
-    if (this.referenceKeypoints) this.referenceKeypoints.delete();
-    if (this.detector) this.detector.delete();
+    this.templates.forEach(template => template.mat.delete());
+    this.templates = [];
+    this.referencePoints = [];
+    this.lastPositions = [];
+    this.initialized = false;
   }
 }

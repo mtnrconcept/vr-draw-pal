@@ -25,6 +25,7 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   const [matchedPoints, setMatchedPoints] = useState(0);
   const [configuredPoints, setConfiguredPoints] = useState<TrackingPoint[]>([]);
   const [referenceImageUrl, setReferenceImageUrl] = useState<string | null>(null);
+  const [isInitializingTracking, setIsInitializingTracking] = useState(false);
 
   const threeRef = useRef<{
     scene?: THREE.Scene;
@@ -128,7 +129,37 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
     }
   };
 
-  const startTracking = () => {
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      trackerRef.current?.dispose();
+    };
+  }, []);
+
+  const loadReferenceImageData = async (dataUrl: string) => {
+    return new Promise<ImageData>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Impossible d'initialiser le canvas"));
+          return;
+        }
+        ctx.drawImage(image, 0, 0);
+        const imageData = ctx.getImageData(0, 0, image.width, image.height);
+        resolve(imageData);
+      };
+      image.onerror = () => reject(new Error("Impossible de charger l'image de référence"));
+      image.src = dataUrl;
+    });
+  };
+
+  const startTracking = async () => {
     if (!streamActive || configuredPoints.length < 4) {
       toast.error("Configurez d'abord les points de tracking");
       return;
@@ -139,24 +170,51 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
       return;
     }
 
-    initThree();
-    trackerRef.current = new OpenCVTracker();
+    if (!referenceImageUrl) {
+      toast.error("Aucune image de référence disponible");
+      return;
+    }
 
-    const canvas = canvasRef.current;
     const video = videoRef.current;
+    const canvas = canvasRef.current;
     if (!canvas || !video) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    if (!video.videoWidth || !video.videoHeight) {
+      toast.error("La vidéo n'est pas prête. Réessayez dans un instant");
+      return;
+    }
 
-    ctx.drawImage(video, 0, 0);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    
-    trackerRef.current.initializeReferencePoints(imageData, configuredPoints);
-    setTrackingActive(true);
-    toast.success("Tracking activé");
+    try {
+      setIsInitializingTracking(true);
+      const referenceImageData = await loadReferenceImageData(referenceImageUrl);
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        toast.error("Impossible d'initialiser le canvas vidéo");
+        return;
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      trackerRef.current?.dispose();
+      trackerRef.current = new OpenCVTracker();
+
+      initThree();
+
+      trackerRef.current.initializeReferencePoints(referenceImageData, configuredPoints);
+      setMatchedPoints(0);
+      setTrackingStability(0);
+      setTrackingActive(true);
+      toast.success("Tracking activé");
+    } catch (error) {
+      console.error(error);
+      toast.error((error as Error).message || "Impossible d'initialiser le tracking");
+      trackerRef.current?.dispose();
+      trackerRef.current = null;
+    } finally {
+      setIsInitializingTracking(false);
+    }
   };
 
   useEffect(() => {
@@ -204,8 +262,30 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
   };
 
   const handleConfigurationReady = (refImage: string, points: TrackingPoint[]) => {
+    if (trackingActive) {
+      setTrackingActive(false);
+      trackerRef.current?.dispose();
+      trackerRef.current = null;
+    }
+
+    const { scene, referencePlane } = threeRef.current;
+    if (scene && referencePlane) {
+      scene.remove(referencePlane);
+      const material = referencePlane.material;
+      if (Array.isArray(material)) {
+        material.forEach(mat => mat.dispose());
+      } else if (material && typeof (material as THREE.Material).dispose === "function") {
+        const singleMaterial = material as THREE.Material;
+        singleMaterial.dispose();
+      }
+      referencePlane.geometry.dispose();
+      threeRef.current.referencePlane = undefined;
+    }
+
     setReferenceImageUrl(refImage);
     setConfiguredPoints(points);
+    setMatchedPoints(0);
+    setTrackingStability(0);
     toast.success(`Configuration prête avec ${points.length} points`);
   };
 
@@ -267,9 +347,18 @@ export default function ARAnchorsMode({ referenceImage }: ARAnchorsModeProps) {
             <Button 
               className="flex-1" 
               onClick={startTracking}
-              disabled={configuredPoints.length < 4 || trackingActive}
+              disabled={
+                configuredPoints.length < 4 ||
+                trackingActive ||
+                isInitializingTracking ||
+                !referenceImageUrl
+              }
             >
-              {trackingActive ? "Tracking actif" : "Démarrer le tracking"}
+              {trackingActive
+                ? "Tracking actif"
+                : isInitializingTracking
+                  ? "Initialisation..."
+                  : "Démarrer le tracking"}
             </Button>
           )}
         </div>
