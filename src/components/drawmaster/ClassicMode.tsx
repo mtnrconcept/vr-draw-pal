@@ -100,15 +100,15 @@ const ClassicMode = ({
   const gridCellSize = `calc(100% / ${tileCount})`;
 
   return (
-    <div className="space-y-4">
-      <div className="relative w-full aspect-video bg-muted rounded-lg overflow-hidden">
+    <div className="space-y-6">
+      <div className="relative w-full overflow-hidden rounded-[28px] border border-white/60 bg-black/80 shadow-[var(--shadow-card)]">
         {/* Camera feed */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className="w-full h-full object-cover"
+          className="h-full w-full object-cover"
         />
 
         {/* Reference image overlay */}
@@ -143,60 +143,58 @@ const ClassicMode = ({
         )}
 
         {ghostMentorEnabled && (
-          <div className="absolute top-4 right-4 bg-primary/20 text-primary-foreground px-3 py-1 rounded-full text-sm">
-            Ghost Mentor Actif
+          <div className="absolute right-4 top-4 rounded-full bg-primary/30 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-white shadow-[0_10px_30px_rgba(92,80,255,0.4)]">
+            Ghost Mentor actif
           </div>
         )}
       </div>
 
-      <Card className="p-4 space-y-4">
-        <div>
-          <Label>Opacité de l'image</Label>
+      <Card className="space-y-5 rounded-[28px] border border-white/60 bg-white/75 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+        <div className="space-y-3">
+          <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Opacité de l'image</Label>
           <Slider
             value={[opacity]}
             onValueChange={(value) => !strobeEnabled && setOpacity(value[0])}
             min={0}
             max={100}
             step={1}
-            className="mt-2"
             disabled={strobeEnabled}
           />
-          <span className="text-sm text-muted-foreground">
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             {strobeEnabled ? "Contrôlée par le strobe" : `${opacity}%`}
           </span>
         </div>
 
-        <div>
-          <Label>Échelle</Label>
+        <div className="space-y-3">
+          <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Échelle</Label>
           <Slider
             value={[scale]}
             onValueChange={(value) => setScale(value[0])}
             min={0.1}
             max={3}
             step={0.1}
-            className="mt-2"
           />
-          <span className="text-sm text-muted-foreground">{scale.toFixed(1)}x</span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{scale.toFixed(1)}x</span>
         </div>
 
-        <div>
-          <Label>Rotation</Label>
+        <div className="space-y-3">
+          <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Rotation</Label>
           <Slider
             value={[rotation]}
             onValueChange={(value) => setRotation(value[0])}
             min={-180}
             max={180}
             step={1}
-            className="mt-2"
           />
-          <span className="text-sm text-muted-foreground">{rotation}°</span>
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{rotation}°</span>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setPosition({ x: 0, y: 0 })}
+            className="h-10 flex-1 rounded-full border-white/60 bg-white/70 text-xs font-semibold uppercase tracking-widest text-foreground shadow-inner shadow-white/40 backdrop-blur transition hover:bg-white"
           >
             <Move className="w-4 h-4 mr-2" />
             Centrer
@@ -205,6 +203,7 @@ const ClassicMode = ({
             variant="outline"
             size="sm"
             onClick={() => setRotation(0)}
+            className="h-10 flex-1 rounded-full border-white/60 bg-white/70 text-xs font-semibold uppercase tracking-widest text-foreground shadow-inner shadow-white/40 backdrop-blur transition hover:bg-white"
           >
             <RotateCw className="w-4 h-4 mr-2" />
             Reset Rotation
@@ -213,6 +212,7 @@ const ClassicMode = ({
             variant="outline"
             size="sm"
             onClick={() => setScale(1)}
+            className="h-10 flex-1 rounded-full border-white/60 bg-white/70 text-xs font-semibold uppercase tracking-widest text-foreground shadow-inner shadow-white/40 backdrop-blur transition hover:bg-white"
           >
             <ZoomIn className="w-4 h-4 mr-2" />
             Reset Échelle

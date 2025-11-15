@@ -6,7 +6,7 @@ import ClassicMode from "@/components/drawmaster/ClassicMode";
 import ARMode from "@/components/drawmaster/ARMode";
 import GhostMentor from "@/components/drawmaster/GhostMentor";
 import DrawingTools from "@/components/drawmaster/DrawingTools";
-import { Camera, Anchor, Ghost, Grid, Zap, Palette } from "lucide-react";
+import { Camera, Anchor, Ghost, Grid } from "lucide-react";
 
 const DrawMasterVR = () => {
   const [activeMode, setActiveMode] = useState<"classic" | "ar" | "vr">("classic");
@@ -21,54 +21,90 @@ const DrawMasterVR = () => {
   const [strobeMaxOpacity, setStrobeMaxOpacity] = useState(90);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border p-4">
-        <div className="container mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">DrawMaster VR</h1>
-          <div className="flex gap-2">
-            <Button
-              variant={ghostMentorEnabled ? "default" : "outline"}
-              size="sm"
-              onClick={() => setGhostMentorEnabled(!ghostMentorEnabled)}
-            >
-              <Ghost className="w-4 h-4 mr-2" />
-              Ghost Mentor
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div className="relative min-h-screen overflow-hidden">
+      <div className="absolute inset-0 -z-10">
+        <div className="absolute left-14 top-28 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
+        <div className="absolute right-10 top-20 h-80 w-80 rounded-full bg-secondary/25 blur-3xl" />
+        <div className="absolute bottom-16 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
+      </div>
 
-      <main className="container mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          {/* Mode Selection */}
-          <Card className="lg:col-span-1 p-4">
-            <h2 className="text-lg font-semibold mb-4">Modes de dessin</h2>
-            <div className="space-y-2">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-24 sm:px-6 lg:px-8">
+        <Card className="mb-10 flex flex-col gap-6 rounded-[40px] border border-white/60 bg-white/80 p-8 shadow-[var(--shadow-soft)] backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold uppercase tracking-widest text-primary">
+              Studio immersif
+            </div>
+            <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-5xl">DrawMaster VR</h1>
+            <p className="max-w-2xl text-base leading-relaxed text-muted-foreground">
+              Composez vos séances de projection et de réalité augmentée dans une interface pensée pour les tablettes et casques VR. Ajustez la grille, activez le strobe et laissez le Ghost Mentor guider vos traits.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-4 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/70 to-secondary/12 px-6 py-5 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest">
+              <span>Mode actif</span>
+              <span className="rounded-full bg-white/70 px-3 py-1 text-primary shadow-inner shadow-white/50">{activeMode === "classic" ? "Classic" : activeMode === "ar" ? "AR" : "VR"}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest">
+              <span>Ghost Mentor</span>
+              <Button
+                size="sm"
+                onClick={() => setGhostMentorEnabled(!ghostMentorEnabled)}
+                className={`h-9 rounded-full px-4 text-xs font-semibold uppercase tracking-widest ${ghostMentorEnabled ? "bg-primary text-white" : "border border-white/60 bg-white/70 text-foreground"}`}
+              >
+                <Ghost className="mr-2 h-4 w-4" />
+                {ghostMentorEnabled ? "Activé" : "Inactif"}
+              </Button>
+            </div>
+            <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Outils de projection</div>
+            <p className="text-sm leading-relaxed">
+              Glissez vos références, calibrez la grille et expérimentez le strobe pour un tracé ultra précis.
+            </p>
+          </div>
+        </Card>
+
+        <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+          <Card className="flex flex-col gap-6 rounded-[36px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Modes de dessin</h2>
+            <div className="grid gap-3">
               <Button
                 variant={activeMode === "classic" ? "default" : "outline"}
-                className="w-full justify-start"
+                className={`h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest ${activeMode === "classic" ? "bg-primary text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
                 onClick={() => setActiveMode("classic")}
               >
-                <Camera className="w-4 h-4 mr-2" />
-                Mode Classic
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-primary">
+                    <Camera className="h-5 w-5" />
+                  </span>
+                  Mode Classic
+                </div>
+                <span className="text-xs">Projection directe</span>
               </Button>
               <Button
                 variant={activeMode === "ar" ? "default" : "outline"}
-                className="w-full justify-start"
+                className={`h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest ${activeMode === "ar" ? "bg-secondary text-white shadow-[0_18px_40px_-22px_rgba(255,151,118,0.6)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
                 onClick={() => setActiveMode("ar")}
               >
-                <Anchor className="w-4 h-4 mr-2" />
-                Mode AR (Anchors)
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-secondary">
+                    <Anchor className="h-5 w-5" />
+                  </span>
+                  Mode AR (Anchors)
+                </div>
+                <span className="text-xs">Réglages avancés</span>
               </Button>
               <Button
-                variant={activeMode === "vr" ? "default" : "outline"}
-                className="w-full justify-start"
-                onClick={() => setActiveMode("vr")}
+                variant="outline"
+                className="h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest border-dashed border-white/70 bg-white/50 text-muted-foreground"
                 disabled
               >
-                <Grid className="w-4 h-4 mr-2" />
-                Mode VR (Vision Pro)
-                <span className="ml-auto text-xs text-muted-foreground">Bientôt</span>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-muted-foreground">
+                    <Grid className="h-5 w-5" />
+                  </span>
+                  Mode VR (Vision Pro)
+                </div>
+                <span className="text-xs">Bientôt</span>
               </Button>
             </div>
 
@@ -96,34 +132,45 @@ const DrawMasterVR = () => {
             />
           </Card>
 
-          {/* Main Canvas Area */}
-          <Card className="lg:col-span-3 p-4 min-h-[600px]">
-            <Tabs value={activeMode} className="w-full">
-              <TabsContent value="classic" className="mt-0">
-                <ClassicMode
-                  referenceImage={referenceImage}
-                  ghostMentorEnabled={ghostMentorEnabled}
-                  gridEnabled={gridEnabled}
-                  gridOpacity={gridOpacity}
-                  gridTileCount={gridTileCount}
-                  strobeEnabled={strobeEnabled}
-                  strobeSpeed={strobeSpeed}
-                  strobeMinOpacity={strobeMinOpacity}
-                  strobeMaxOpacity={strobeMaxOpacity}
-                />
-              </TabsContent>
-              <TabsContent value="ar" className="mt-0">
-                <ARMode
-                  referenceImage={referenceImage}
-                  gridEnabled={gridEnabled}
-                  gridOpacity={gridOpacity}
-                  gridTileCount={gridTileCount}
-                  strobeEnabled={strobeEnabled}
-                  strobeSpeed={strobeSpeed}
-                  strobeMinOpacity={strobeMinOpacity}
-                  strobeMaxOpacity={strobeMaxOpacity}
-                />
-              </TabsContent>
+          <Card className="rounded-[36px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-soft)] backdrop-blur-xl">
+            <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as "classic" | "ar" | "vr")}
+              className="flex h-full flex-col">
+              <TabsList className="mb-6 grid grid-cols-2 rounded-[24px] border border-white/60 bg-white/70 p-1 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                <TabsTrigger value="classic" className="rounded-[20px] px-6 py-3 data-[state=active]:bg-primary data-[state=active]:text-white">
+                  Mode Classic
+                </TabsTrigger>
+                <TabsTrigger value="ar" className="rounded-[20px] px-6 py-3 data-[state=active]:bg-secondary data-[state=active]:text-white">
+                  Mode AR
+                </TabsTrigger>
+              </TabsList>
+
+              <div className="flex-1">
+                <TabsContent value="classic" className="mt-0 h-full">
+                  <ClassicMode
+                    referenceImage={referenceImage}
+                    ghostMentorEnabled={ghostMentorEnabled}
+                    gridEnabled={gridEnabled}
+                    gridOpacity={gridOpacity}
+                    gridTileCount={gridTileCount}
+                    strobeEnabled={strobeEnabled}
+                    strobeSpeed={strobeSpeed}
+                    strobeMinOpacity={strobeMinOpacity}
+                    strobeMaxOpacity={strobeMaxOpacity}
+                  />
+                </TabsContent>
+                <TabsContent value="ar" className="mt-0 h-full">
+                  <ARMode
+                    referenceImage={referenceImage}
+                    gridEnabled={gridEnabled}
+                    gridOpacity={gridOpacity}
+                    gridTileCount={gridTileCount}
+                    strobeEnabled={strobeEnabled}
+                    strobeSpeed={strobeSpeed}
+                    strobeMinOpacity={strobeMinOpacity}
+                    strobeMaxOpacity={strobeMaxOpacity}
+                  />
+                </TabsContent>
+              </div>
             </Tabs>
 
             {ghostMentorEnabled && (
@@ -134,7 +181,7 @@ const DrawMasterVR = () => {
             )}
           </Card>
         </div>
-      </main>
+      </div>
     </div>
   );
 };
