@@ -30,19 +30,19 @@ const DrawMasterVR = () => {
         <div className="absolute bottom-16 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-3 pb-20 pt-16 sm:px-4 sm:pt-20 md:px-6 lg:px-8">
-        <Card className="mb-6 flex flex-col gap-4 rounded-[24px] border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:mb-8 sm:gap-6 sm:rounded-[32px] sm:p-6 lg:mb-12 lg:gap-8 lg:rounded-[40px] lg:flex-row lg:items-center lg:justify-between lg:p-8">
-          <div className="space-y-3 text-center sm:space-y-4 lg:text-left">
-            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-primary sm:px-4 sm:py-2 sm:text-sm">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-20 sm:px-6 lg:px-8">
+        <Card className="mb-12 flex flex-col gap-8 rounded-[40px] border border-white/70 bg-white/85 p-6 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-4 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold uppercase tracking-widest text-primary">
               Studio immersif
             </div>
-            <h1 className="text-3xl font-bold leading-tight text-foreground sm:text-4xl lg:text-5xl">DrawMaster VR</h1>
-            <p className="mx-auto max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base lg:mx-0">
+            <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-5xl">DrawMaster VR</h1>
+            <p className="mx-auto max-w-2xl text-base leading-relaxed text-muted-foreground lg:mx-0">
               Composez vos séances de projection et de réalité augmentée dans une interface pensée pour les tablettes et casques VR. Ajustez la grille, activez le strobe et laissez le Ghost Mentor guider vos traits.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-[20px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/80 to-secondary/10 px-4 py-4 text-sm text-muted-foreground shadow-[var(--shadow-card)] sm:gap-4 sm:rounded-[24px] sm:px-5 sm:py-5 lg:rounded-[28px] lg:px-6">
+          <div className="flex flex-col gap-4 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/80 to-secondary/10 px-6 py-5 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest">
               <span>Mode actif</span>
               <span className="rounded-full bg-white/70 px-3 py-1 text-primary shadow-inner shadow-white/50">{activeMode === "classic" ? "Classic" : activeMode === "ar" ? "AR" : "VR"}</span>
@@ -65,48 +65,48 @@ const DrawMasterVR = () => {
           </div>
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[0.98fr_1.02fr] lg:gap-8">
-          <Card className="flex flex-col gap-4 overflow-x-hidden rounded-[24px] border border-white/60 bg-white/85 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:gap-5 sm:rounded-[28px] sm:p-5 lg:gap-6 lg:rounded-[36px] lg:p-6">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground sm:text-sm">Modes de dessin</h2>
-            <div className="grid gap-2.5 sm:gap-3">
+        <div className="grid gap-8 lg:grid-cols-[0.98fr_1.02fr]">
+          <Card className="flex flex-col gap-6 rounded-[36px] border border-white/60 bg-white/85 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Modes de dessin</h2>
+            <div className="grid gap-3">
               <Button
                 variant={activeMode === "classic" ? "default" : "outline"}
-                className={`h-12 justify-between rounded-[18px] px-4 text-xs font-semibold uppercase tracking-widest sm:h-14 sm:rounded-[20px] sm:px-5 sm:text-sm lg:rounded-[24px] lg:px-6 ${activeMode === "classic" ? "bg-primary text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
+                className={`h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest ${activeMode === "classic" ? "bg-primary text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
                 onClick={() => setActiveMode("classic")}
               >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/40 text-primary sm:h-10 sm:w-10 sm:rounded-2xl">
-                    <Camera className="h-4 w-4 sm:h-5 sm:w-5" />
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-primary">
+                    <Camera className="h-5 w-5" />
                   </span>
-                  <span className="text-left">Mode Classic</span>
+                  Mode Classic
                 </div>
-                <span className="hidden text-xs sm:inline">Projection directe</span>
+                <span className="text-xs">Projection directe</span>
               </Button>
               <Button
                 variant={activeMode === "ar" ? "default" : "outline"}
-                className={`h-12 justify-between rounded-[18px] px-4 text-xs font-semibold uppercase tracking-widest sm:h-14 sm:rounded-[20px] sm:px-5 sm:text-sm lg:rounded-[24px] lg:px-6 ${activeMode === "ar" ? "bg-secondary text-white shadow-[0_18px_40px_-22px_rgba(255,151,118,0.6)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
+                className={`h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest ${activeMode === "ar" ? "bg-secondary text-white shadow-[0_18px_40px_-22px_rgba(255,151,118,0.6)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
                 onClick={() => setActiveMode("ar")}
               >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/40 text-secondary sm:h-10 sm:w-10 sm:rounded-2xl">
-                    <Anchor className="h-4 w-4 sm:h-5 sm:w-5" />
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-secondary">
+                    <Anchor className="h-5 w-5" />
                   </span>
-                  <span className="text-left">Mode AR (Anchors)</span>
+                  Mode AR (Anchors)
                 </div>
-                <span className="hidden text-xs sm:inline">Réglages avancés</span>
+                <span className="text-xs">Réglages avancés</span>
               </Button>
               <Button
                 variant="outline"
-                className="h-12 justify-between rounded-[18px] border-dashed border-white/70 bg-white/50 px-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground sm:h-14 sm:rounded-[20px] sm:px-5 sm:text-sm lg:rounded-[24px] lg:px-6"
+                className="h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest border-dashed border-white/70 bg-white/50 text-muted-foreground"
                 disabled
               >
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/40 text-muted-foreground sm:h-10 sm:w-10 sm:rounded-2xl">
-                    <Grid className="h-4 w-4 sm:h-5 sm:w-5" />
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-muted-foreground">
+                    <Grid className="h-5 w-5" />
                   </span>
-                  <span className="text-left">Mode VR (Vision Pro)</span>
+                  Mode VR (Vision Pro)
                 </div>
-                <span className="hidden text-xs sm:inline">Bientôt</span>
+                <span className="text-xs">Bientôt</span>
               </Button>
             </div>
 
@@ -138,19 +138,19 @@ const DrawMasterVR = () => {
             />
           </Card>
 
-          <Card className="overflow-x-hidden rounded-[24px] border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:rounded-[28px] sm:p-5 lg:rounded-[36px] lg:p-6">
+          <Card className="rounded-[36px] border border-white/70 bg-white/85 p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-6">
             <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as "classic" | "ar" | "vr")}
               className="flex h-full flex-col">
-            <TabsList className="mb-4 grid grid-cols-1 gap-1.5 rounded-[18px] border border-white/60 bg-white/70 p-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground sm:mb-6 sm:grid-cols-2 sm:gap-2 sm:rounded-[20px] sm:p-1.5 sm:text-xs lg:rounded-[24px]">
-                <TabsTrigger value="classic" className="rounded-[14px] px-4 py-2 sm:rounded-[16px] sm:px-6 sm:py-3 lg:rounded-[20px] data-[state=active]:bg-primary data-[state=active]:text-white">
+            <TabsList className="mb-6 grid grid-cols-1 gap-2 rounded-[24px] border border-white/60 bg-white/70 p-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground sm:grid-cols-2">
+                <TabsTrigger value="classic" className="rounded-[20px] px-6 py-3 data-[state=active]:bg-primary data-[state=active]:text-white">
                   Mode Classic
                 </TabsTrigger>
-                <TabsTrigger value="ar" className="rounded-[14px] px-4 py-2 sm:rounded-[16px] sm:px-6 sm:py-3 lg:rounded-[20px] data-[state=active]:bg-secondary data-[state=active]:text-white">
+                <TabsTrigger value="ar" className="rounded-[20px] px-6 py-3 data-[state=active]:bg-secondary data-[state=active]:text-white">
                   Mode AR
                 </TabsTrigger>
               </TabsList>
 
-              <div className="flex-1 space-y-4 overflow-x-hidden sm:space-y-6">
+              <div className="flex-1 space-y-6">
                 <TabsContent value="classic" className="mt-0 h-full">
                   <ClassicMode
                     referenceImage={referenceImage}
