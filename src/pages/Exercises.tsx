@@ -76,7 +76,7 @@ const Exercises = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen overflow-x-hidden">
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-[10%] top-12 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute right-[15%] top-28 h-72 w-72 rounded-full bg-secondary/20 blur-3xl" />
