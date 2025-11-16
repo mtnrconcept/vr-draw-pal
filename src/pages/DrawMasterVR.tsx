@@ -23,7 +23,7 @@ const DrawMasterVR = () => {
   const [brightness, setBrightness] = useState(100);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-br from-[#f9f7ff] via-white to-[#f2f5ff]">
+    <div className="mobile-safe-area relative min-h-screen overflow-x-hidden bg-gradient-to-br from-[#f9f7ff] via-white to-[#f2f5ff]">
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-14 top-28 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute right-10 top-20 h-80 w-80 rounded-full bg-secondary/25 blur-3xl" />
@@ -31,8 +31,8 @@ const DrawMasterVR = () => {
       </div>
 
       <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-20 sm:px-6 lg:px-8">
-        <Card className="mb-12 flex flex-col gap-8 rounded-[40px] border border-white/70 bg-white/85 p-6 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-4 text-center lg:text-left">
+        <Card className="mobile-card mb-12 flex flex-col gap-6 rounded-[40px] border border-white/70 bg-white/85 p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-6 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold uppercase tracking-widest text-primary">
               Studio immersif
             </div>
@@ -42,7 +42,7 @@ const DrawMasterVR = () => {
             </p>
           </div>
 
-          <div className="flex flex-col gap-4 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/80 to-secondary/10 px-6 py-5 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+          <div className="flex flex-col gap-5 rounded-[28px] border border-white/60 bg-gradient-to-br from-primary/12 via-white/80 to-secondary/10 px-6 py-5 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest">
               <span>Mode actif</span>
               <span className="rounded-full bg-white/70 px-3 py-1 text-primary shadow-inner shadow-white/50">{activeMode === "classic" ? "Classic" : activeMode === "ar" ? "AR" : "VR"}</span>
@@ -65,8 +65,8 @@ const DrawMasterVR = () => {
           </div>
         </Card>
 
-        <div className="grid gap-8 lg:grid-cols-[0.98fr_1.02fr]">
-          <Card className="flex flex-col gap-6 rounded-[36px] border border-white/60 bg-white/85 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
+        <div className="mobile-grid-collapse grid gap-8 lg:grid-cols-[0.98fr_1.02fr]">
+          <Card className="mobile-card flex flex-col gap-6 rounded-[36px] border border-white/60 bg-white/85 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Modes de dessin</h2>
             <div className="grid gap-3">
               <Button
@@ -138,20 +138,20 @@ const DrawMasterVR = () => {
             />
           </Card>
 
-          <Card className="rounded-[36px] border border-white/70 bg-white/85 p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-6">
+          <Card className="mobile-card rounded-[36px] border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-6">
             <Tabs value={activeMode} onValueChange={(value) => setActiveMode(value as "classic" | "ar" | "vr")}
-              className="flex h-full flex-col">
-            <TabsList className="mb-6 grid grid-cols-1 gap-2 rounded-[24px] border border-white/60 bg-white/70 p-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground sm:grid-cols-2">
-                <TabsTrigger value="classic" className="rounded-[20px] px-6 py-3 data-[state=active]:bg-primary data-[state=active]:text-white">
+              className="flex h-full w-full flex-col gap-6">
+            <TabsList className="mobile-stack-gap mb-2 grid w-full grid-cols-1 gap-2 rounded-[24px] border border-white/60 bg-white/70 p-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground sm:grid-cols-2 sm:mb-6 overflow-hidden">
+                <TabsTrigger value="classic" className="w-full rounded-[20px] px-6 py-3 text-center text-[11px] data-[state=active]:bg-primary data-[state=active]:text-white sm:text-xs">
                   Mode Classic
                 </TabsTrigger>
-                <TabsTrigger value="ar" className="rounded-[20px] px-6 py-3 data-[state=active]:bg-secondary data-[state=active]:text-white">
+                <TabsTrigger value="ar" className="w-full rounded-[20px] px-6 py-3 text-center text-[11px] data-[state=active]:bg-secondary data-[state=active]:text-white sm:text-xs">
                   Mode AR
                 </TabsTrigger>
               </TabsList>
 
               <div className="flex-1 space-y-6">
-                <TabsContent value="classic" className="mt-0 h-full">
+                <TabsContent value="classic" className="mt-0 h-full space-y-4">
                   <ClassicMode
                     referenceImage={referenceImage}
                     ghostMentorEnabled={ghostMentorEnabled}
@@ -166,7 +166,7 @@ const DrawMasterVR = () => {
                     brightness={brightness}
                   />
                 </TabsContent>
-                <TabsContent value="ar" className="mt-0 h-full">
+                <TabsContent value="ar" className="mt-0 h-full space-y-4">
                   <ARMode
                     referenceImage={referenceImage}
                     gridEnabled={gridEnabled}

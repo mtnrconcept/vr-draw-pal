@@ -7,6 +7,9 @@ export interface TrackingCalibrationResult {
   trackingPoints: TrackingPoint[];
   overlayImage: string;
   overlayAnchors: TrackingPoint[];
+  overlayPreview?: string | null;
+  overlayWidth?: number;
+  overlayHeight?: number;
 }
 
 export interface TrackingConfiguration {
@@ -16,12 +19,16 @@ export interface TrackingConfiguration {
   trackingPoints: TrackingPoint[];
   overlayImage: string;
   overlayAnchors: TrackingPoint[];
+  overlayPreview?: string | null;
+  overlayWidth?: number;
+  overlayHeight?: number;
   created_at: string;
 }
 
 export const useTrackingPoints = () => {
   const [configurations, setConfigurations] = useState<TrackingConfiguration[]>([]);
   const [currentConfig, setCurrentConfig] = useState<TrackingConfiguration | null>(null);
+
   const saveConfiguration = useCallback((configData: TrackingCalibrationResult) => {
     const newConfig: TrackingConfiguration = {
       id: `config_${Date.now()}`,
@@ -30,6 +37,9 @@ export const useTrackingPoints = () => {
       trackingPoints: configData.trackingPoints,
       overlayImage: configData.overlayImage,
       overlayAnchors: configData.overlayAnchors,
+      overlayPreview: configData.overlayPreview ?? null,
+      overlayWidth: configData.overlayWidth,
+      overlayHeight: configData.overlayHeight,
       created_at: new Date().toISOString()
     };
     setConfigurations(prev => [...prev, newConfig]);
@@ -41,10 +51,18 @@ export const useTrackingPoints = () => {
     setCurrentConfig(config);
   }, []);
 
+  const updateConfiguration = useCallback((config: TrackingConfiguration) => {
+    setConfigurations(prev =>
+      prev.map(item => (item.id === config.id ? config : item))
+    );
+    setCurrentConfig(config);
+  }, []);
+
   return {
     configurations,
     currentConfig,
     saveConfiguration,
-    loadConfiguration
+    loadConfiguration,
+    updateConfiguration
   };
 };

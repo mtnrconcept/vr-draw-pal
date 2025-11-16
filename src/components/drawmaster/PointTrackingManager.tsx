@@ -10,19 +10,30 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import TrackingCalibration, { TrackingCalibrationResult } from "./TrackingCalibration";
-import { useTrackingPoints, TrackingConfiguration } from "@/hooks/useTrackingPoints";
+import { TrackingConfiguration } from "@/hooks/useTrackingPoints";
 
 interface PointTrackingManagerProps {
+  configurations: TrackingConfiguration[];
+  currentConfig: TrackingConfiguration | null;
+  onCalibrationComplete: (result: TrackingCalibrationResult) => void;
+  onSelectConfiguration: (config: TrackingConfiguration) => void;
   onConfigurationReady: (config: TrackingConfiguration) => void;
+  onCalibrationStart?: () => void;
+  onCalibrationEnd?: () => void;
   externalCalibrationTrigger?: number;
 }
 
 export default function PointTrackingManager({
+  configurations,
+  currentConfig,
+  onCalibrationComplete,
+  onSelectConfiguration,
   onConfigurationReady,
+  onCalibrationStart,
+  onCalibrationEnd,
   externalCalibrationTrigger,
 }: PointTrackingManagerProps) {
   const [isCalibrating, setIsCalibrating] = useState(false);
-  const { configurations, currentConfig, saveConfiguration, loadConfiguration } = useTrackingPoints();
   const externalTriggerRef = useRef(externalCalibrationTrigger);
 
   useEffect(() => {
@@ -36,19 +47,27 @@ export default function PointTrackingManager({
     }
   }, [externalCalibrationTrigger]);
 
+  useEffect(() => {
+    if (isCalibrating) {
+      onCalibrationStart?.();
+    } else {
+      onCalibrationEnd?.();
+    }
+  }, [isCalibrating, onCalibrationEnd, onCalibrationStart]);
+
   const handleCalibrationComplete = (result: TrackingCalibrationResult) => {
     const configName = result.name || `Config ${configurations.length + 1}`;
-    const config = saveConfiguration({
+    const normalizedResult: TrackingCalibrationResult = {
       ...result,
-      name: configName
-    });
-    onConfigurationReady(config);
+      name: configName,
+    };
+    onCalibrationComplete(normalizedResult);
     setIsCalibrating(false);
   };
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="mobile-safe-area mobile-stack-gap space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">Points de Tracking</h3>
           <Button size="sm" onClick={() => setIsCalibrating(true)}>
@@ -57,8 +76,8 @@ export default function PointTrackingManager({
           </Button>
         </div>
 
-        {currentConfig && (
-          <Card className="p-3 bg-primary/10 border-primary">
+        {currentConfig ? (
+          <Card className="mobile-card p-3 bg-primary/10 border-primary">
             <div className="flex items-start justify-between">
               <div>
                 <p className="font-medium text-sm">{currentConfig.name}</p>
@@ -69,11 +88,9 @@ export default function PointTrackingManager({
               <Settings className="w-4 h-4 text-primary" />
             </div>
           </Card>
-        )}
-
-        {!currentConfig && (
-          <Card className="p-4 text-center">
-            <p className="text-sm text-muted-foreground mb-2">
+        ) : (
+          <Card className="mobile-card p-4 text-center">
+            <p className="mb-2 text-sm text-muted-foreground">
               Aucune configuration active
             </p>
             <p className="text-xs text-muted-foreground">
@@ -85,14 +102,14 @@ export default function PointTrackingManager({
         {configurations.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground">Configurations sauvegardées</p>
-            {configurations.map(config => (
+            {configurations.map((config) => (
               <Button
                 key={config.id}
                 variant={currentConfig?.id === config.id ? "default" : "outline"}
                 size="sm"
                 className="w-full justify-start"
                 onClick={() => {
-                  loadConfiguration(config);
+                  onSelectConfiguration(config);
                   onConfigurationReady(config);
                 }}
               >

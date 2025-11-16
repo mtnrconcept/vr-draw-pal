@@ -102,8 +102,23 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   body {
     @apply text-foreground;
+    margin: 0;
     background-image:
       radial-gradient(circle at 10% 20%, hsl(274 100% 92% / 0.55) 0, transparent 55%),
       radial-gradient(circle at 85% 15%, hsl(16 95% 80% / 0.4) 0, transparent 50%),
@@ -111,6 +126,20 @@ All colors MUST be HSL.
       linear-gradient(180deg, hsl(33 90% 96%), hsl(26 80% 92%));
     background-attachment: fixed;
   }
+}
+
+.mobile-safe-area {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.mobile-card {
+  width: 100%;
+}
+
+.mobile-stack-gap {
+  gap: 1.25rem;
 }
 
 @keyframes shimmer {
@@ -125,3 +154,88 @@ All colors MUST be HSL.
 .animate-shimmer {
   animation: shimmer 2s infinite;
 }
+
+@keyframes pencil-path {
+  0% {
+    transform: translate(0, 0) rotate(-12deg);
+  }
+  25% {
+    transform: translate(45%, -10%) rotate(-5deg);
+  }
+  50% {
+    transform: translate(60%, 35%) rotate(6deg);
+  }
+  75% {
+    transform: translate(10%, 55%) rotate(12deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-12deg);
+  }
+}
+
+@keyframes sketch-line {
+  0% {
+    transform: scaleX(0);
+    opacity: 0.3;
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0.6;
+  }
+}
+
+@keyframes pencil-progress {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-pencil-path {
+  animation: pencil-path 1.8s ease-in-out infinite;
+}
+
+.animate-sketch-line,
+.animate-sketch-line-delayed {
+  animation: sketch-line 1.2s ease-in-out infinite alternate;
+  transform-origin: left center;
+}
+
+.animate-sketch-line-delayed {
+  animation-delay: 0.25s;
+}
+
+.animate-pencil-progress {
+  animation: pencil-progress 5s linear forwards;
+}
+
+@media (max-width: 640px) {
+  .mobile-card {
+    padding: 1.25rem !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .mobile-dialog-content {
+    width: calc(100vw - 1.5rem) !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    padding: 1.5rem !important;
+    border-radius: 1.5rem !important;
+    max-height: calc(100vh - 2rem) !important;
+    overflow-y: auto !important;
+  }
+
+  .mobile-stack-gap {
+    gap: 1rem !important;
+  }
+
+  .mobile-grid-collapse {
+    display: flex !important;
+    flex-direction: column;
+  }
+}
+

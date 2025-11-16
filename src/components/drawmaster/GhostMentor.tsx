@@ -19,7 +19,8 @@ const GhostMentor = ({ mode, referenceImage }: GhostMentorProps) => {
   const [sensitivity, setSensitivity] = useState(50);
 
   return (
-    <Card className="mt-4 p-4 border-2 border-primary">
+    <div className="mobile-safe-area">
+    <Card className="mobile-card mt-4 p-4 border-2 border-primary sm:p-6">
       <div className="flex items-center gap-2 mb-4">
         <Ghost className="w-5 h-5 text-primary" />
         <h3 className="font-semibold text-lg">Ghost Mentor</h3>
@@ -120,6 +121,7 @@ const GhostMentor = ({ mode, referenceImage }: GhostMentorProps) => {
         </div>
       </div>
     </Card>
+    </div>
   );
 };
 

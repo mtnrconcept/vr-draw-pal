@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Camera, Undo, Check, X } from "lucide-react";
+import { Camera, Undo, Check, X, Pencil, ImagePlus } from "lucide-react";
 import { TrackingPoint } from "@/lib/opencv/tracker";
 
 // Simple toast replacement
@@ -24,6 +24,9 @@ export interface TrackingCalibrationResult {
   overlayImage: string;
   overlayAnchors: TrackingPoint[];
   name: string;
+  overlayPreview?: string | null;
+  overlayWidth?: number;
+  overlayHeight?: number;
 }
 
 type CalibrationStep = "instructions" | "upload" | "video-capture" | "anchor" | "review";
@@ -33,6 +36,9 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageCanvasRef = useRef<HTMLCanvasElement>(null);
   const videoOverlayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAnimationTimeoutRef = useRef<number | null>(null);  const pendingUploadPreviewRef = useRef<string | null>(null);
+  const uploadTimerDoneRef = useRef(false);
 
   const [step, setStep] = useState<CalibrationStep>("instructions");
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -41,24 +47,70 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
   const [streamActive, setStreamActive] = useState(false);
   const [configName, setConfigName] = useState("");
   const [overlayImage, setOverlayImage] = useState<string | null>(null);
+  const [overlayPreview, setOverlayPreview] = useState<string | null>(null);
+  const [overlayDimensions, setOverlayDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [overlayAnchors, setOverlayAnchors] = useState<TrackingPoint[]>([]);
   const [draggingAnchorId, setDraggingAnchorId] = useState<string | null>(null);
   const [videoAnchorRatios, setVideoAnchorRatios] = useState<
     { id: string; label: string; ratioX: number; ratioY: number }[]
   >([]);
+  const [uploadState, setUploadState] = useState<"idle" | "animating" | "ready">("idle");
+  const [selectedOverlayName, setSelectedOverlayName] = useState<string | null>(null);
+  const [cameraAspectRatio, setCameraAspectRatio] = useState(4 / 3);
+
+  const completeUploadPreview = (preview: string) => {
+    setOverlayPreview(preview);
+    setUploadState("ready");
+    toast.success("Miniature prête. Validez pour continuer.");
+    pendingUploadPreviewRef.current = null;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (uploadAnimationTimeoutRef.current) {
+        window.clearTimeout(uploadAnimationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleOverlayUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
+    setSelectedOverlayName(file.name);
+
+    if (uploadAnimationTimeoutRef.current) {
+      window.clearTimeout(uploadAnimationTimeoutRef.current);
+      uploadAnimationTimeoutRef.current = null;
+    }
+
+    pendingUploadPreviewRef.current = null;
+    uploadTimerDoneRef.current = false;
+    setUploadState("animating");
+    setOverlayPreview(null);
+
+    uploadAnimationTimeoutRef.current = window.setTimeout(() => {
+      uploadTimerDoneRef.current = true;
+      if (pendingUploadPreviewRef.current) {
+        completeUploadPreview(pendingUploadPreviewRef.current);
+      } else {
+        setUploadState("ready");
+      }
+      uploadAnimationTimeoutRef.current = null;
+    }, 5000);
 
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result as string;
       setOverlayImage(result);
+      setOverlayDimensions(null);
       setVideoAnchorRatios([]);
       setMarkedPoints([]);
+
       const img = new Image();
       img.onload = () => {
         const anchors: TrackingPoint[] = [
@@ -68,15 +120,78 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
           { id: "anchor_bottom_right", x: img.width, y: img.height, label: "Ancre 4" }
         ];
         setOverlayAnchors(anchors);
+        setOverlayDimensions({
+          width: img.naturalWidth || img.width,
+          height: img.naturalHeight || img.height
+        });
+
+        const maxPreview = 720;
+        const largestSide = Math.max(img.width, img.height);
+        const scale = largestSide > maxPreview ? maxPreview / largestSide : 1;
+        const previewCanvas = document.createElement("canvas");
+        previewCanvas.width = Math.max(1, Math.round(img.width * scale));
+        previewCanvas.height = Math.max(1, Math.round(img.height * scale));
+        const ctx = previewCanvas.getContext("2d");
+        let previewData = result;
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.filter = "blur(0.2px)";
+          ctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+          ctx.filter = "none";
+          previewData = previewCanvas.toDataURL("image/jpeg", 0.9);
+        }
+        pendingUploadPreviewRef.current = previewData;
+        if (uploadTimerDoneRef.current) {
+          completeUploadPreview(previewData);
+        }
       };
       img.src = result;
-      setStep("video-capture");
-      toast.success("Image de référence chargée. Capturez maintenant votre feuille.");
     };
     reader.onerror = () => {
+      setUploadState("idle");
       toast.error("Impossible de lire l'image sélectionnée");
+      if (uploadAnimationTimeoutRef.current) {
+        window.clearTimeout(uploadAnimationTimeoutRef.current);
+        uploadAnimationTimeoutRef.current = null;
+      }
     };
     reader.readAsDataURL(file);
+  };
+
+  const resetOverlayState = () => {
+    setOverlayImage(null);
+    setOverlayPreview(null);
+    setOverlayDimensions(null);
+    setOverlayAnchors([]);
+    setMarkedPoints([]);
+    setSelectedOverlayName(null);
+    if (uploadAnimationTimeoutRef.current) {
+      window.clearTimeout(uploadAnimationTimeoutRef.current);
+      uploadAnimationTimeoutRef.current = null;
+    }
+    pendingUploadPreviewRef.current = null;
+    uploadTimerDoneRef.current = false;
+    setUploadState("idle");
+  };
+
+  const updateCameraAspectRatio = useCallback(() => {
+    const video = videoRef.current;
+    if (video && video.videoWidth && video.videoHeight) {
+      const ratio = video.videoWidth / video.videoHeight;
+      if (ratio > 0) {
+        setCameraAspectRatio(ratio);
+      }
+    }
+  }, []);
+
+  const proceedToVideoCapture = () => {
+    if (!overlayImage || uploadState !== "ready") {
+      toast.error("Attendez la fin de l'animation avant de valider.");
+      return;
+    }
+    setStep("video-capture");
+    toast.success("Image de référence chargée. Capturez maintenant votre feuille.");
   };
 
   const getDefaultVideoAnchors = useCallback(() => {
@@ -164,6 +279,42 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     return { x, y };
   };
 
+  const getAnchorIdForPosition = (canvas: HTMLCanvasElement, x: number, y: number) => {
+    const horizontal = x < canvas.width / 2 ? "left" : "right";
+    const vertical = y < canvas.height / 2 ? "top" : "bottom";
+    return `anchor_${vertical}_${horizontal}`;
+  };
+
+  const updateAnchorPosition = (anchorId: string, canvas: HTMLCanvasElement, x: number, y: number) => {
+    const clampedX = Math.max(0, Math.min(canvas.width, x));
+    const clampedY = Math.max(0, Math.min(canvas.height, y));
+    const ratioX = canvas.width ? clampedX / canvas.width : 0;
+    const ratioY = canvas.height ? clampedY / canvas.height : 0;
+
+    setVideoAnchorRatios(prev => {
+      let updated = false;
+      const next = prev.map(anchor =>
+        anchor.id === anchorId ? ((updated = true), { ...anchor, ratioX, ratioY }) : anchor
+      );
+
+      if (!updated) {
+        const anchorLabel =
+          overlayAnchors.find(anchor => anchor.id === anchorId)?.label ?? `Ancre ${anchorId}`;
+        return [
+          ...next,
+          {
+            id: anchorId,
+            label: anchorLabel,
+            ratioX,
+            ratioY
+          }
+        ];
+      }
+
+      return next;
+    });
+  };
+
   const handleVideoPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = videoOverlayCanvasRef.current;
     if (!canvas) return;
@@ -178,6 +329,9 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     if (hitAnchor) {
       setDraggingAnchorId(hitAnchor.id);
       canvas.setPointerCapture(event.pointerId);
+    } else {
+      const targetId = getAnchorIdForPosition(canvas, x, y);
+      updateAnchorPosition(targetId, canvas, x, y);
     }
   };
 
@@ -187,19 +341,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     if (!canvas) return;
 
     const { x, y } = getCanvasCoordinates(canvas, event);
-    const clampedX = Math.max(0, Math.min(canvas.width, x));
-    const clampedY = Math.max(0, Math.min(canvas.height, y));
-
-    const ratioX = canvas.width ? clampedX / canvas.width : 0;
-    const ratioY = canvas.height ? clampedY / canvas.height : 0;
-
-    setVideoAnchorRatios(prev =>
-      prev.map(anchor =>
-        anchor.id === draggingAnchorId
-          ? { ...anchor, ratioX, ratioY }
-          : anchor
-      )
-    );
+    updateAnchorPosition(draggingAnchorId, canvas, x, y);
   };
 
   const handleVideoPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -223,7 +365,11 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          updateCameraAspectRatio();
+        };
         await videoRef.current.play();
+        updateCameraAspectRatio();
         const overlay = videoOverlayCanvasRef.current;
         if (overlay) {
           overlay.width = videoRef.current.videoWidth;
@@ -236,10 +382,18 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
       toast.success("Caméra activée");
     } catch (err) {
       console.error(err);
-      toast.error("Impossible d'accéder à la caméra");
+      let message = "Impossible d'accéder à la caméra";
+      if (err instanceof DOMException) {
+        if (err.name === "NotReadableError") {
+          message =
+            "La caméra est déjà utilisée par un autre mode. Fermez les autres flux vidéo puis réessayez.";
+        } else if (err.name === "NotAllowedError") {
+          message = "Autorisez l'accès à la caméra pour continuer la calibration.";
+        }
+      }
+      toast.error(message);
     }
-  }, [redrawVideoCanvas]);
-
+  }, [redrawVideoCanvas, updateCameraAspectRatio]);
   useEffect(() => {
     if (step !== "video-capture") return;
     if (!streamActive) {
@@ -273,9 +427,9 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
 
     ctx.drawImage(video, 0, 0, width, height);
     
-    const imageData = canvas.toDataURL("image/jpeg", 0.75);
+    const imageData = canvas.toDataURL("image/png");
     
-    if (!imageData || !imageData.startsWith("data:image/jpeg;base64,")) {
+    if (!imageData || !imageData.startsWith("data:image/png;base64,")) {
       toast.error("Erreur lors de la capture de l'image");
       return;
     }
@@ -391,29 +545,38 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
       trackingPoints: markedPoints,
       overlayImage,
       overlayAnchors,
-      name: configName.trim()
+      name: configName.trim(),
+      overlayPreview: overlayPreview ?? overlayImage,
+      overlayWidth: overlayDimensions?.width,
+      overlayHeight: overlayDimensions?.height
     });
     toast.success("Configuration sauvegardée !");
   };
 
   const resetAndCancel = () => {
-    if (streamActive) {
-      stopCameraStream();
-    }
+    resetOverlayState();
     setStep("instructions");
-    setOverlayAnchors([]);
-    setMarkedPoints([]);
     setCapturedImage(null);
     setVideoCaptureImage(null);
-    setOverlayImage(null);
     setConfigName("");
     setVideoAnchorRatios([]);
     setDraggingAnchorId(null);
+    if (streamActive) {
+      stopCameraStream();
+    }
     onCancel();
   };
 
+  const handleReturnToUpload = () => {
+    if (streamActive) {
+      stopCameraStream();
+    }
+    setStep("upload");
+  };
+
   return (
-    <Card className="p-6 space-y-4">
+    <div className="mobile-safe-area w-full">
+    <Card className="mobile-card p-4 sm:p-6 space-y-4">
       <div className="space-y-2">
         <h3 className="text-lg font-semibold">
           {step === "instructions" && "Préparation : Dessinez les marqueurs"}
@@ -427,7 +590,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
           {step === "upload" && "Sélectionnez l'image de référence à projeter sur votre feuille."}
           {step === "video-capture" && "Positionnez votre feuille avec les 4 marqueurs visibles et capturez l'image."}
           {step === "anchor" &&
-            "Placez les ancres directement sur la capture de votre feuille afin qu'elles correspondent à vos marqueurs physiques, puis validez."}
+            "Cliquez sur chacun de vos marqueurs pour faire apparaître automatiquement l'ancre correspondante (haut-gauche, haut-droite, bas-gauche, bas-droite), puis ajustez-la en la faisant glisser si nécessaire."}
           {step === "review" && "Vérifiez l'alignement final puis validez la configuration."}
         </p>
       </div>
@@ -507,14 +670,107 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
 
       {step === "upload" && (
         <div className="space-y-4">
-          <div className="border border-dashed border-border rounded-lg p-6 text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              Importez l'image que vous souhaitez reproduire sur votre feuille.
-            </p>
-            <Input type="file" accept="image/*" onChange={handleOverlayUpload} />
+          <div className="mobile-card border border-dashed border-border rounded-lg p-4 text-center space-y-6 sm:p-6">
+            {uploadState === "idle" && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Importez l'image que vous souhaitez projeter. Nous conservons la version originale en pleine définition pour l'AR, quelle que soit la webcam utilisée.
+                </p>
+                <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleOverlayUpload}
+                    className="sr-only"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-full bg-primary px-6 text-xs font-semibold uppercase tracking-widest text-white shadow-[0_12px_30px_-18px_rgba(92,80,255,0.7)] hover:bg-primary/90"
+                  >
+                    <ImagePlus className="mr-2 h-4 w-4" />
+                    Sélectionner une image
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    L'animation du crayon se lance pendant 5 secondes dès que vous choisissez votre fichier.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {uploadState === "animating" && (
+              <div className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  Patientez pendant que le crayon virtuel prépare votre miniature haute fidélité...
+                </p>
+                <div className="relative mx-auto h-56 w-full max-w-md">
+                  <div className="absolute inset-0 rounded-[32px] border-2 border-dashed border-primary/40 bg-white/70 shadow-lg" />
+                  <div className="absolute inset-4 rounded-[24px] bg-gradient-to-br from-white/90 to-primary/5 shadow-inner" />
+                  <div className="absolute inset-6 flex flex-col gap-3 p-4 text-left">
+                    <div className="h-2 rounded-full bg-primary/15 overflow-hidden">
+                      <div className="h-full bg-primary/60 animate-sketch-line" />
+                    </div>
+                    <div className="h-2 rounded-full bg-primary/15 overflow-hidden w-3/4">
+                      <div className="h-full bg-primary/45 animate-sketch-line-delayed" />
+                    </div>
+                    <div className="h-2 rounded-full bg-primary/15 overflow-hidden w-1/2">
+                      <div className="h-full bg-primary/35 animate-sketch-line" />
+                    </div>
+                  </div>
+                  <div className="absolute top-8 left-8 animate-pencil-path">
+                    <div className="w-14 h-14 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-xl">
+                      <Pencil className="w-6 h-6" />
+                    </div>
+                  </div>
+                </div>
+                <div className="h-2 rounded-full bg-border overflow-hidden">
+                  <div className="h-full bg-primary animate-pencil-progress" />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  L'animation dure 5 secondes, juste le temps de générer un aperçu optimisé.
+                </p>
+              </div>
+            )}
+
+            {uploadState === "ready" && overlayPreview && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Aperçu compressé pour l'interface (l'image source reste intacte).
+                </p>
+                {selectedOverlayName && (
+                  <p className="text-sm font-semibold text-foreground">
+                    Fichier sélectionné : <span className="font-normal">{selectedOverlayName}</span>
+                  </p>
+                )}
+                <div className="border rounded-lg overflow-hidden bg-black/5">
+                  <img
+                    src={overlayPreview}
+                    alt="Aperçu de l'image importée"
+                    className="w-full max-h-64 object-contain"
+                  />
+                </div>
+                {overlayDimensions && (
+                  <p className="text-xs text-muted-foreground">
+                    Qualité source : {overlayDimensions.width} × {overlayDimensions.height} px
+                  </p>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={resetAndCancel}>
+          <div className="flex flex-wrap items-center gap-3">
+            {uploadState === "ready" && (
+              <div className="flex gap-2">
+                <Button onClick={proceedToVideoCapture}>
+                  <Check className="w-4 h-4 mr-2" />
+                  Valider
+                </Button>
+                <Button variant="ghost" onClick={resetOverlayState}>
+                  Changer d'image
+                </Button>
+              </div>
+            )}
+            <Button variant="outline" onClick={resetAndCancel} className="ml-auto">
               <X className="w-4 h-4 mr-2" />
               Annuler
             </Button>
@@ -527,8 +783,15 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
           <p className="text-sm text-muted-foreground">
             Placez votre feuille de façon à ce que les 4 marqueurs soient bien visibles dans le cadre.
           </p>
-          <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-black border border-border">
-            <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" />
+          <div
+            className="relative w-full overflow-hidden rounded-lg border border-border bg-black"
+            style={{ aspectRatio: cameraAspectRatio }}
+          >
+            <video
+              ref={videoRef}
+              className="absolute inset-0 h-full w-full object-contain"
+              onLoadedMetadata={updateCameraAspectRatio}
+            />
           </div>
           <canvas ref={canvasRef} className="hidden" />
 
@@ -544,7 +807,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
                 Capturer l'image
               </Button>
             )}
-            <Button variant="outline" onClick={() => setStep("upload")}>
+            <Button variant="outline" onClick={handleReturnToUpload}>
               Retour
             </Button>
             <Button variant="outline" onClick={resetAndCancel}>
@@ -558,7 +821,7 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
       {step === "anchor" && overlayImage && videoCaptureImage && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Les quatre ancres sont positionnées automatiquement sur les coins de votre feuille. Faites-les glisser
+            Cliquez pour placer une ancre sur chacun de vos marqueurs. Vous pouvez ensuite les glisser pour affiner leur alignement
             directement sur l'image capturée pour les aligner précisément avec vos points de tracking.
           </p>
           <div className="relative w-full rounded-lg overflow-hidden border border-border bg-black">
@@ -669,5 +932,6 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
         </div>
       )}
     </Card>
+    </div>
   );
 }

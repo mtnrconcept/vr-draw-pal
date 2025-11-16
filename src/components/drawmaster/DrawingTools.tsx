@@ -102,8 +102,8 @@ const DrawingTools = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
+    <div className="mobile-safe-area space-y-6 mobile-stack-gap">
+      <div className="mobile-card rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
         <Label htmlFor="image-upload" className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Image de référence
         </Label>
@@ -124,7 +124,7 @@ const DrawingTools = ({
         </Button>
       </div>
 
-      <Card className="space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
+      <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
             <Grid className="h-4 w-4 text-primary" />
@@ -169,7 +169,7 @@ const DrawingTools = ({
         )}
       </Card>
 
-      <Card className="space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
+      <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
             <Zap className="h-4 w-4 text-secondary" />
@@ -233,7 +233,7 @@ const DrawingTools = ({
         )}
       </Card>
 
-      <Card className="space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
+      <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
         <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
           <Palette className="h-4 w-4 text-accent" />
           Filtres

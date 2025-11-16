@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
@@ -40,6 +40,17 @@ const ClassicMode = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const strobePhaseRef = useRef(0);
   const [dynamicOpacity, setDynamicOpacity] = useState(opacity / 100);
+  const [cameraAspectRatio, setCameraAspectRatio] = useState(4 / 3);
+
+  const updateCameraAspectRatio = useCallback(() => {
+    const video = videoRef.current;
+    if (video && video.videoWidth && video.videoHeight) {
+      const ratio = video.videoWidth / video.videoHeight;
+      if (ratio > 0) {
+        setCameraAspectRatio(ratio);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     // Initialize camera stream
@@ -50,6 +61,7 @@ const ClassicMode = ({
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = updateCameraAspectRatio;
         }
       } catch (error) {
         console.error("Erreur d'accès à la caméra:", error);
@@ -104,15 +116,19 @@ const ClassicMode = ({
   const gridCellSize = `calc(100% / ${tileCount})`;
 
   return (
-    <div className="space-y-6">
-      <div className="relative w-full overflow-hidden rounded-[28px] border border-white/60 bg-black/80 shadow-[var(--shadow-card)]">
+    <div className="mobile-safe-area space-y-6 mobile-stack-gap">
+      <div
+        className="relative w-full overflow-hidden rounded-[28px] border border-white/60 bg-black/80 shadow-[var(--shadow-card)]"
+        style={{ aspectRatio: cameraAspectRatio }}
+      >
         {/* Camera feed */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
+          onLoadedMetadata={updateCameraAspectRatio}
           style={{ filter: `brightness(${brightness}%) contrast(${contrast}%)` }}
         />
 
@@ -154,7 +170,7 @@ const ClassicMode = ({
         )}
       </div>
 
-      <Card className="space-y-5 rounded-[28px] border border-white/60 bg-white/75 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+      <Card className="mobile-card space-y-5 rounded-[28px] border border-white/60 bg-white/75 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
         <div className="space-y-3">
           <Label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Opacité de l'image</Label>
           <Slider

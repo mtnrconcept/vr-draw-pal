@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -6,7 +7,8 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
 import PointTrackingManager from "./PointTrackingManager";
-import { TrackingConfiguration } from "@/hooks/useTrackingPoints";
+import type { TrackingCalibrationResult } from "./TrackingCalibration";
+import { TrackingConfiguration, useTrackingPoints } from "@/hooks/useTrackingPoints";
 import {
   AlertTriangle,
   Eye,
@@ -14,6 +16,7 @@ import {
   LocateFixed,
   Maximize2,
   Minimize2,
+  ImagePlus,
 } from "lucide-react";
 
 // Simple toast replacement
@@ -92,9 +95,7 @@ export default function ARAnchorsMode({
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const trackerRef = useRef<OpenCVTracker | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const smoothingRef = useRef<HomographySmoothing>(
-    new HomographySmoothing()
-  );
+  const smoothingRef = useRef<HomographySmoothing>(new HomographySmoothing());
   const warpResourcesRef = useRef<WarpResources>({
     overlayMat: null,
     warpedMat: null,
@@ -103,6 +104,7 @@ export default function ARAnchorsMode({
   const lastGoodHomographyRef = useRef<number[] | null>(null);
 
   const [streamActive, setStreamActive] = useState(false);
+  const streamActiveRef = useRef(false);
   const [trackingActive, setTrackingActive] = useState(false);
   const [trackingStability, setTrackingStability] = useState(0);
   const [matchedPoints, setMatchedPoints] = useState(0);
@@ -113,18 +115,39 @@ export default function ARAnchorsMode({
   const [overlayToReferenceHomography, setOverlayToReferenceHomography] =
     useState<number[] | null>(null);
   const [isInitializingTracking, setIsInitializingTracking] = useState(false);
-  const [overlayImage, setOverlayImage] = useState<HTMLImageElement | null>(
-    null
-  );
+  const [overlayImage, setOverlayImage] = useState<HTMLImageElement | null>(null);
   const [showDebugPoints, setShowDebugPoints] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState([70]);
   const strobeAnimationRef = useRef<number>(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasLostAnchors, setHasLostAnchors] = useState(false);
   const [calibrationTrigger, setCalibrationTrigger] = useState(0);
+  const [videoAspectRatio, setVideoAspectRatio] = useState(4 / 3);
+  const [isRecoveringTracking, setIsRecoveringTracking] = useState(false);
+  const [currentOverlayAnchors, setCurrentOverlayAnchors] = useState<TrackingPoint[]>([]);
+  const [overlayDimensions, setOverlayDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [isManualAnchorEditing, setIsManualAnchorEditing] = useState(false);
+  const [projectedOverlayAnchors, setProjectedOverlayAnchors] = useState<
+    { id: string; label?: string; x: number; y: number }[]
+  >([]);
   const anchorLossFramesRef = useRef(0);
-  const quickRestartingRef = useRef(false);
   const wasTrackingBeforeCalibrationRef = useRef(false);
+  const renderSurfaceRef = useRef<HTMLDivElement>(null);
+  const recoveryAttemptTimeoutRef = useRef<number | null>(null);
+  const isRecoveringRef = useRef(false);
+  const manualAnchorDragIdRef = useRef<string | null>(null);
+  // 🔹 Snapshot d’homographie pendant l’édition manuelle
+  const manualEditingHomographyRef = useRef<number[] | null>(null);
+  const activeConfigRef = useRef<TrackingConfiguration | null>(null);
+  const shouldRestoreCameraRef = useRef(false);
+
+  const {
+    configurations,
+    currentConfig,
+    saveConfiguration,
+    loadConfiguration,
+    updateConfiguration,
+  } = useTrackingPoints();
 
   useEffect(() => {
     if (strobeEnabled) {
@@ -143,6 +166,58 @@ export default function ARAnchorsMode({
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (recoveryAttemptTimeoutRef.current) {
+        window.clearTimeout(recoveryAttemptTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isManualAnchorEditing) {
+      setProjectedOverlayAnchors([]);
+      manualAnchorDragIdRef.current = null;
+    }
+  }, [isManualAnchorEditing]);
+
+  useEffect(() => {
+    const surface = renderSurfaceRef.current;
+    const canvas = canvasRef.current;
+    if (!surface || !canvas || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const resize = () => {
+      const { clientWidth, clientHeight } = surface;
+      if (clientWidth && clientHeight) {
+        canvas.width = clientWidth;
+        canvas.height = clientHeight;
+      }
+    };
+
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(surface);
+    return () => {
+      observer.disconnect();
+    };
+  }, [isFullscreen, videoAspectRatio]);
+
+  useEffect(() => {
+    streamActiveRef.current = streamActive;
+  }, [streamActive]);
+
+  const updateVideoAspectRatio = useCallback(() => {
+    const video = videoRef.current;
+    if (video && video.videoWidth && video.videoHeight) {
+      const ratio = video.videoWidth / video.videoHeight;
+      if (ratio > 0) {
+        setVideoAspectRatio(ratio);
+      }
+    }
   }, []);
 
   const toggleFullscreen = async () => {
@@ -185,13 +260,18 @@ export default function ARAnchorsMode({
 
   const startCamera = async () => {
     try {
+      stopCamera();
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: 1280, height: 720 },
       });
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          updateVideoAspectRatio();
+        };
         await videoRef.current.play();
+        updateVideoAspectRatio();
       }
 
       setStreamActive(true);
@@ -200,9 +280,31 @@ export default function ARAnchorsMode({
       toast.success("Caméra activée");
     } catch (err) {
       console.error(err);
-      toast.error("Impossible d'accéder à la caméra");
+      let message = "Impossible d'accéder à la caméra";
+      if (err instanceof DOMException) {
+        if (err.name === "NotReadableError") {
+          message =
+            "La caméra est déjà utilisée par une autre application. Fermez les autres flux vidéo puis réessayez.";
+        } else if (err.name === "NotAllowedError") {
+          message =
+            "Autorisez l'accès à la caméra pour utiliser le mode AR.";
+        }
+      }
+      toast.error(message);
     }
   };
+
+  const stopCamera = useCallback(() => {
+    const video = videoRef.current;
+    const stream = video?.srcObject as MediaStream | null;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    if (video) {
+      video.srcObject = null;
+    }
+    setStreamActive(false);
+  }, []);
 
   const multiplyHomographies = (a: number[], b: number[]) => {
     return [
@@ -216,6 +318,59 @@ export default function ARAnchorsMode({
       a[6] * b[1] + a[7] * b[4] + a[8] * b[7],
       a[6] * b[2] + a[7] * b[5] + a[8] * b[8],
     ];
+  };
+
+  const applyHomographyToPoint = (h: number[] | null, x: number, y: number) => {
+    if (!h || h.length !== 9) {
+      return null;
+    }
+
+    const w = h[6] * x + h[7] * y + h[8];
+    if (Math.abs(w) < 1e-5) {
+      return null;
+    }
+
+    return {
+      x: (h[0] * x + h[1] * y + h[2]) / w,
+      y: (h[3] * x + h[4] * y + h[5]) / w,
+    };
+  };
+
+  const invertHomography = (h: number[] | null) => {
+    if (!h || h.length !== 9) {
+      return null;
+    }
+
+    const [
+      a, b, c,
+      d, e, f,
+      g, i, j,
+    ] = [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], h[8]];
+
+    const det =
+      a * (e * j - f * i) -
+      b * (d * j - f * g) +
+      c * (d * i - e * g);
+
+    if (Math.abs(det) < 1e-8) {
+      return null;
+    }
+
+    const invDet = 1 / det;
+
+    const inverse = [
+      (e * j - f * i) * invDet,
+      (c * i - b * j) * invDet,
+      (b * f - c * e) * invDet,
+      (f * g - d * j) * invDet,
+      (a * j - c * g) * invDet,
+      (c * d - a * f) * invDet,
+      (d * i - e * g) * invDet,
+      (b * g - a * i) * invDet,
+      (a * e - b * d) * invDet,
+    ];
+
+    return inverse;
   };
 
   // Nettoyage global
@@ -252,7 +407,7 @@ export default function ARAnchorsMode({
           console.error("Source:", src?.substring(0, 100) + "...");
           reject(new Error("Impossible de charger l'image de référence"));
         };
-        
+
         // Validate data URL format
         if (src.startsWith("data:")) {
           if (!src.includes("base64,")) {
@@ -260,7 +415,7 @@ export default function ARAnchorsMode({
             return;
           }
         }
-        
+
         image.src = src;
       });
 
@@ -437,30 +592,67 @@ export default function ARAnchorsMode({
     []
   );
 
-  const quickRestartTracking = useCallback(async () => {
-    if (quickRestartingRef.current || !trackingActive) {
+  const scheduleTrackingRecovery = useCallback(() => {
+    if (recoveryAttemptTimeoutRef.current) {
+      window.clearTimeout(recoveryAttemptTimeoutRef.current);
+    }
+    recoveryAttemptTimeoutRef.current = window.setTimeout(async () => {
+      recoveryAttemptTimeoutRef.current = null;
+      if (!streamActiveRef.current) {
+        scheduleTrackingRecovery();
+        return;
+      }
+      const restarted = await startTracking({ silent: true });
+      if (restarted) {
+        isRecoveringRef.current = false;
+        setIsRecoveringTracking(false);
+        setHasLostAnchors(false);
+        anchorLossFramesRef.current = 0;
+      } else {
+        scheduleTrackingRecovery();
+      }
+    }, 1000);
+  }, [startTracking]);
+
+  const triggerTrackingRecovery = useCallback(() => {
+    if (isRecoveringRef.current) {
       return;
     }
-
-    quickRestartingRef.current = true;
+    isRecoveringRef.current = true;
+    setIsRecoveringTracking(true);
+    setHasLostAnchors(true);
     stopTracking({ silent: true });
-    await new Promise((resolve) => setTimeout(resolve, 160));
-    const restarted = await startTracking({ silent: true });
-    if (!restarted) {
-      setHasLostAnchors(true);
+    scheduleTrackingRecovery();
+  }, [scheduleTrackingRecovery, stopTracking]);
+
+  const handleCalibrationStart = useCallback(() => {
+    shouldRestoreCameraRef.current = streamActive;
+    wasTrackingBeforeCalibrationRef.current = trackingActive;
+    if (trackingActive) {
+      stopTracking({ silent: true });
     }
-    quickRestartingRef.current = false;
-  }, [startTracking, stopTracking, trackingActive]);
+    if (streamActive) {
+      stopCamera();
+    }
+    setIsManualAnchorEditing(false);
+    setHasLostAnchors(false);
+  }, [stopCamera, stopTracking, streamActive, trackingActive]);
+
+  const handleCalibrationEnd = useCallback(() => {
+    if (shouldRestoreCameraRef.current) {
+      shouldRestoreCameraRef.current = false;
+      void startCamera();
+    }
+  }, [startCamera]);
+
+  const handleNewConfigurationRequest = useCallback(() => {
+    setCalibrationTrigger((value) => value + 1);
+  }, []);
 
   const handleRepositionAnchors = () => {
     if (!configuredPoints.length) {
       toast.error("Aucune configuration d'ancrage disponible");
       return;
-    }
-
-    wasTrackingBeforeCalibrationRef.current = trackingActive;
-    if (trackingActive) {
-      stopTracking({ silent: true });
     }
 
     anchorLossFramesRef.current = 0;
@@ -615,7 +807,7 @@ export default function ARAnchorsMode({
           cv.imshow(warpedCanvas, warpedMat);
 
           ctx.save();
-          
+
           // Calculer l'opacité avec strobe si activé
           let currentOpacity = overlayOpacity[0] / 100;
           if (strobeEnabled) {
@@ -634,6 +826,46 @@ export default function ARAnchorsMode({
           ctx.globalCompositeOperation = "source-over";
           ctx.drawImage(warpedCanvas, 0, 0);
           ctx.restore();
+
+          if (isManualAnchorEditing && currentOverlayAnchors.length) {
+            const projected = currentOverlayAnchors
+              .map((anchor) => {
+                const projectedPoint = applyHomographyToPoint(
+                  finalH,
+                  anchor.x,
+                  anchor.y
+                );
+                return projectedPoint
+                  ? {
+                      id: anchor.id,
+                      label: anchor.label,
+                      x: projectedPoint.x,
+                      y: projectedPoint.y,
+                    }
+                  : null;
+              })
+              .filter(
+                (value): value is { id: string; label?: string; x: number; y: number } =>
+                  Boolean(value)
+              );
+
+            setProjectedOverlayAnchors((previous) => {
+              if (
+                previous.length === projected.length &&
+                previous.every((item, index) => {
+                  const nextItem = projected[index];
+                  return (
+                    nextItem &&
+                    Math.abs(item.x - nextItem.x) < 0.5 &&
+                    Math.abs(item.y - nextItem.y) < 0.5
+                  );
+                })
+              ) {
+                return previous;
+              }
+              return projected;
+            });
+          }
 
           // Dessiner la grille si activée
           if (gridEnabled) {
@@ -733,15 +965,8 @@ export default function ARAnchorsMode({
             }
           }
 
-          if (
-            anchorLossFramesRef.current > 12 &&
-            !quickRestartingRef.current &&
-            streamActive
-          ) {
-            if (!hasLostAnchors) {
-              setHasLostAnchors(true);
-            }
-            quickRestartTracking();
+          if (anchorLossFramesRef.current > 12 && streamActive) {
+            triggerTrackingRecovery();
             anchorLossFramesRef.current = 0;
           }
         }
@@ -779,7 +1004,10 @@ export default function ARAnchorsMode({
     brightness,
     contrast,
     hasLostAnchors,
-    quickRestartTracking,
+    triggerTrackingRecovery,
+    // 🔹 pour que le rendu tienne compte du mode édition & des ancres
+    isManualAnchorEditing,
+    currentOverlayAnchors,
   ]);
 
   const computeOverlayToReference = (
@@ -836,11 +1064,18 @@ export default function ARAnchorsMode({
       stopTracking({ silent: true });
     }
 
+    activeConfigRef.current = config;
     setTrackingReferenceImageUrl(config.referenceImage);
     setConfiguredPoints(config.trackingPoints);
-    setOverlayImageUrl(config.overlayImage);
+    setOverlayImageUrl(config.overlayPreview ?? config.overlayImage);
+    setCurrentOverlayAnchors(config.overlayAnchors);
+    if (config.overlayWidth && config.overlayHeight) {
+      setOverlayDimensions({ width: config.overlayWidth, height: config.overlayHeight });
+    } else {
+      setOverlayDimensions(null);
+    }
+    setIsManualAnchorEditing(false);
 
-    // Charger l'image overlay
     const img = new Image();
     img.crossOrigin = "anonymous";
     await new Promise((resolve, reject) => {
@@ -861,8 +1096,9 @@ export default function ARAnchorsMode({
     lastGoodHomographyRef.current = null;
     anchorLossFramesRef.current = 0;
     setHasLostAnchors(false);
+    setIsRecoveringTracking(false);
+    isRecoveringRef.current = false;
 
-    // Reset des ressources OpenCV liées à l’overlay
     const cv = (window as any).cv;
     if (cv) {
       warpResourcesRef.current.overlayMat?.delete?.();
@@ -886,24 +1122,221 @@ export default function ARAnchorsMode({
     }
   };
 
+  const getPointerCanvasCoordinates = (
+    event: ReactPointerEvent<Element>
+  ) => {
+    const surface = renderSurfaceRef.current;
+    const canvas = canvasRef.current;
+    if (!surface || !canvas) {
+      return null;
+    }
+    const rect = surface.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+    return { x, y };
+  };
+
+  const updateOverlayAnchorFromVideo = useCallback(
+    (anchorId: string, videoX: number, videoY: number) => {
+      if (!currentOverlayAnchors.length) {
+        return;
+      }
+
+      // 🔹 Utilise l’homographie “gelée” si on est en édition, sinon la dernière bonne
+      const baseHomography =
+        manualEditingHomographyRef.current ?? lastGoodHomographyRef.current;
+
+      const inverse = invertHomography(baseHomography);
+      const imageWidth = overlayDimensions?.width ?? overlayImage?.width ?? 0;
+      const imageHeight = overlayDimensions?.height ?? overlayImage?.height ?? 0;
+      if (!inverse || !imageWidth || !imageHeight) {
+        return;
+      }
+
+      const overlayPoint = applyHomographyToPoint(inverse, videoX, videoY);
+      if (!overlayPoint) {
+        return;
+      }
+
+      const clampedX = Math.max(0, Math.min(imageWidth, overlayPoint.x));
+      const clampedY = Math.max(0, Math.min(imageHeight, overlayPoint.y));
+
+      setCurrentOverlayAnchors((prev) => {
+        const updated = prev.map((anchor) =>
+          anchor.id === anchorId ? { ...anchor, x: clampedX, y: clampedY } : anchor
+        );
+        const transform = computeOverlayToReference(updated, configuredPoints);
+        if (transform) {
+          setOverlayToReferenceHomography(transform);
+        }
+
+        if (activeConfigRef.current) {
+          const patched: TrackingConfiguration = {
+            ...activeConfigRef.current,
+            overlayAnchors: updated,
+          };
+          activeConfigRef.current = patched;
+          updateConfiguration(patched);
+        }
+
+        return updated;
+      });
+    },
+    [
+      computeOverlayToReference,
+      configuredPoints,
+      currentOverlayAnchors.length,
+      overlayDimensions,
+      overlayImage,
+      updateConfiguration
+    ]
+  );
+
+  const handleManualAnchorPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    anchorId: string
+  ) => {
+    if (!isManualAnchorEditing) {
+      return;
+    }
+
+    manualAnchorDragIdRef.current = anchorId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleManualAnchorPointerMove = (
+    event: ReactPointerEvent<Element>
+  ) => {
+    if (!manualAnchorDragIdRef.current || !isManualAnchorEditing) {
+      return;
+    }
+    const coords = getPointerCanvasCoordinates(event);
+    if (!coords) {
+      return;
+    }
+    updateOverlayAnchorFromVideo(
+      manualAnchorDragIdRef.current,
+      coords.x,
+      coords.y
+    );
+  };
+
+  const handleManualAnchorPointerUp = (
+    event: ReactPointerEvent<Element>
+  ) => {
+    if (manualAnchorDragIdRef.current) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        /* noop */
+      }
+      manualAnchorDragIdRef.current = null;
+    }
+  };
+
+  const toggleManualAnchorEditing = () => {
+    if (!currentOverlayAnchors.length) {
+      toast.error("Aucune configuration active n'est disponible.");
+      return;
+    }
+    if (!isManualAnchorEditing && !lastGoodHomographyRef.current) {
+      toast.error("Attendez que le tracking se stabilise avant d'ajuster les ancres.");
+      return;
+    }
+
+    manualAnchorDragIdRef.current = null;
+
+    setIsManualAnchorEditing((prev) => {
+      const next = !prev;
+
+      if (next) {
+        // 🔹 On entre en mode édition → snapshot de la dernière H overlay→vidéo
+        manualEditingHomographyRef.current = lastGoodHomographyRef.current
+          ? [...lastGoodHomographyRef.current]
+          : null;
+      } else {
+        // 🔹 On quitte le mode édition → on repasse sur la H live
+        manualEditingHomographyRef.current = null;
+      }
+
+      return next;
+    });
+  };
+
+  const handleCalibrationComplete = useCallback(
+    (result: TrackingCalibrationResult) => {
+      const savedConfig = saveConfiguration(result);
+      loadConfiguration(savedConfig);
+      void handleConfigurationReady(savedConfig);
+    },
+    [handleConfigurationReady, loadConfiguration, saveConfiguration]
+  );
+
+  const handleSelectConfiguration = useCallback(
+    (config: TrackingConfiguration) => {
+      loadConfiguration(config);
+      void handleConfigurationReady(config);
+    },
+    [handleConfigurationReady, loadConfiguration]
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="mobile-safe-area space-y-6 mobile-stack-gap">
       <div
         ref={videoContainerRef}
-        className={`relative w-full overflow-hidden rounded-[28px] border border-white/60 bg-black/85 shadow-[var(--shadow-card)] ${
-          isFullscreen ? "h-full" : "aspect-video"
-        }`}
+        className="relative w-full overflow-hidden rounded-[28px] border border-white/60 bg-black/85 shadow-[var(--shadow-card)]"
+        style={isFullscreen ? undefined : { aspectRatio: videoAspectRatio }}
       >
-        <video
-          ref={videoRef}
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ filter: `brightness(${brightness}%) contrast(${contrast}%)` }}
-          autoPlay
-          playsInline
-          muted
-        />
+        <div ref={renderSurfaceRef} className="relative h-full w-full">
+          <video
+            ref={videoRef}
+            className="absolute inset-0 h-full w-full object-contain bg-black"
+            style={{ filter: `brightness(${brightness}%) contrast(${contrast}%)` }}
+            autoPlay
+            playsInline
+            muted
+          />
 
-        <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+          <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+          {isManualAnchorEditing && projectedOverlayAnchors.length > 0 && (
+            <div className="pointer-events-none absolute inset-0 z-20">
+              {projectedOverlayAnchors.map((anchor) => (
+                <button
+                  key={anchor.id}
+                  type="button"
+                  className="pointer-events-auto absolute h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary text-[10px] font-bold text-white shadow-lg"
+                  style={{
+                    left: `${(anchor.x / (canvasRef.current?.width || 1)) * 100}%`,
+                    top: `${(anchor.y / (canvasRef.current?.height || 1)) * 100}%`,
+                  }}
+                  onPointerDown={(event) => handleManualAnchorPointerDown(event, anchor.id)}
+                  onPointerMove={(event) => handleManualAnchorPointerMove(event)}
+                  onPointerUp={(event) => handleManualAnchorPointerUp(event)}
+                  onPointerLeave={(event) => handleManualAnchorPointerUp(event)}
+                >
+                  {anchor.label ?? "•"}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {isRecoveringTracking && (
+          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/70 text-white backdrop-blur-sm">
+            <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-amber-200">
+              <AlertTriangle className="h-5 w-5" />
+              Analyse en cours
+            </div>
+            <p className="max-w-sm text-center text-sm text-white/80">
+              Replacez la feuille bien en face de la caméra et patientez pendant que nous retrouvons les quatre ancres de tracking.
+            </p>
+          </div>
+        )}
 
         <Button
           type="button"
@@ -981,36 +1414,47 @@ export default function ARAnchorsMode({
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <Card className="space-y-6 rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {!streamActive ? (
-              <Button
-                className="h-12 flex-1 rounded-full bg-gradient-to-r from-primary to-secondary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
-                onClick={startCamera}
-              >
-                Activer la caméra
-              </Button>
-            ) : !trackingActive ? (
-              <Button
-                className="h-12 flex-1 rounded-full bg-primary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
-                onClick={() => startTracking()}
-                disabled={
-                  configuredPoints.length < 4 ||
-                  isInitializingTracking ||
-                  !trackingReferenceImageUrl
-                }
-              >
-                {isInitializingTracking ? "Initialisation..." : "Démarrer le tracking"}
-              </Button>
-            ) : (
-              <Button
-                className="h-12 flex-1 rounded-full text-xs font-semibold uppercase tracking-widest"
-                variant="destructive"
-                onClick={() => stopTracking()}
-              >
-                Arrêter le tracking
-              </Button>
-            )}
+        <Card className="mobile-card space-y-6 rounded-[28px] border border-white/60 bg-white/80 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              {!streamActive ? (
+                <Button
+                  className="h-12 w-full rounded-full bg-gradient-to-r from-primary to-secondary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
+                  onClick={startCamera}
+                >
+                  Activer la caméra
+                </Button>
+              ) : !trackingActive ? (
+                <Button
+                  className="h-12 w-full rounded-full bg-primary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
+                  onClick={() => startTracking()}
+                  disabled={
+                    configuredPoints.length < 4 ||
+                    isInitializingTracking ||
+                    !trackingReferenceImageUrl
+                  }
+                >
+                  {isInitializingTracking ? "Initialisation..." : "Démarrer le tracking"}
+                </Button>
+              ) : (
+                <Button
+                  className="h-12 w-full rounded-full text-xs font-semibold uppercase tracking-widest"
+                  variant="destructive"
+                  onClick={() => stopTracking()}
+                >
+                  Arrêter le tracking
+                </Button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 w-full rounded-full text-xs font-semibold uppercase tracking-widest sm:w-auto"
+              onClick={handleNewConfigurationRequest}
+            >
+              <ImagePlus className="mr-2 h-4 w-4" />
+              Importer une image AR
+            </Button>
           </div>
 
           {trackingActive && (
@@ -1053,6 +1497,27 @@ export default function ARAnchorsMode({
           )}
 
           {trackingActive && (
+            <div className="rounded-[22px] border border-white/60 bg-white/75 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-[var(--shadow-card)] backdrop-blur-xl">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p>Repositionnement manuel</p>
+                  <p className="text-[11px] font-normal normal-case text-muted-foreground">
+                    Cliquez et glissez les quatre ancres directement sur l'image projetée.
+                  </p>
+                </div>
+                <Button
+                  variant={isManualAnchorEditing ? "destructive" : "secondary"}
+                  size="sm"
+                  className="rounded-full text-[11px]"
+                  onClick={toggleManualAnchorEditing}
+                  disabled={isRecoveringTracking || currentOverlayAnchors.length < 4}
+                >
+                  {isManualAnchorEditing ? "Quitter l'ajustement" : "Ajuster les ancres"}
+                </Button>
+              </div>
+            </div>
+          )}
+          {trackingActive && (
             <div className="rounded-[24px] border border-primary/40 bg-primary/10 p-5 text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-[var(--shadow-card)]">
               <p>Tracking 2D stabilisé</p>
               <p className="mt-2 text-[11px] font-normal normal-case text-primary-foreground/80">
@@ -1062,10 +1527,16 @@ export default function ARAnchorsMode({
           )}
         </Card>
 
-        <div className="space-y-6">
-          <Card className="rounded-[28px] border border-white/60 bg-white/80 p-6 shadow-[var(--shadow-card)] backdrop-blur-xl">
+        <div className="space-y-6 mobile-stack-gap">
+          <Card className="mobile-card rounded-[28px] border border-white/60 bg-white/80 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
             <PointTrackingManager
+              configurations={configurations}
+              currentConfig={currentConfig}
+              onCalibrationComplete={handleCalibrationComplete}
+              onSelectConfiguration={handleSelectConfiguration}
               onConfigurationReady={handleConfigurationReady}
+              onCalibrationStart={handleCalibrationStart}
+              onCalibrationEnd={handleCalibrationEnd}
               externalCalibrationTrigger={calibrationTrigger}
             />
           </Card>

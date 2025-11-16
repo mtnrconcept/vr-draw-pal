@@ -48,8 +48,9 @@ export class OpenCVTracker {
   private anchorIndices: number[] = [];
   private lastAcceptedAnchorPositions: { x: number; y: number }[] = [];
   private anchorBaselineDistance = 0;
-  private readonly anchorRigidityTolerance = 0.25; // 25% d'écart pairwise toléré
-  private anchorOutlierPixelThreshold = 35;
+  // plus rigide : on tolère moins de variation
+  private readonly anchorRigidityTolerance = 0.12; // 12% d'écart pairwise toléré
+  private anchorOutlierPixelThreshold = 25;        // seuil de distance plus strict
 
   constructor() {
     this.cv = (window as any).cv;
@@ -227,6 +228,40 @@ export class OpenCVTracker {
       }
     }
     return count > 0 ? total / count : 0;
+  }
+
+  /**
+   * Vérifie que la nouvelle homographie ne "compresse" pas trop le quadrilatère
+   * défini par les ancres par rapport à la baseline d'init (taille de la feuille).
+   * Si la distance moyenne entre coins devient beaucoup plus petite ou beaucoup
+   * plus grande, on considère la H comme suspecte (feuille au bord, faux recalage).
+   */
+  private isHomographyScaleReasonable(h: number[]): boolean {
+    if (!this.anchorBaselineDistance || this.anchorBaselineDistance <= 0) {
+      return true;
+    }
+
+    const projected: { x: number; y: number }[] = [];
+    for (const idx of this.anchorIndices) {
+      const ref = this.referencePoints[idx];
+      const p = this.applyHomographyToPoint(h, ref.x, ref.y);
+      if (!p) {
+        return false;
+      }
+      projected.push(p);
+    }
+
+    if (projected.length < 2) return true;
+
+    const avgDist = this.computeAverageDistance(projected);
+    const scaleRatio = avgDist / this.anchorBaselineDistance;
+
+    // On autorise un peu de variation (zoom / éloignement) mais pas
+    // un écrasement massif ni un agrandissement délirant.
+    const minScale = 0.6; // 60% de la taille d'origine
+    const maxScale = 1.8; // 180% de la taille d'origine
+
+    return scaleRatio >= minScale && scaleRatio <= maxScale;
   }
 
   private applyHomographyToPoint(
@@ -658,22 +693,30 @@ export class OpenCVTracker {
               currentH.push(H.doubleAt(Math.floor(i / 3), i % 3));
             }
 
-            const alpha = 0.85;
-            if (this.lastHomography) {
-              homography = currentH.map(
-                (v, i) => alpha * v + (1 - alpha) * this.lastHomography![i]
-              );
-            } else {
-              homography = currentH;
-            }
-            this.lastHomography = homography.slice();
-            computedNewHomography = true;
+            // ⚠️ Anti-compression : on rejette les homographies qui écrasent
+            // beaucoup la "taille" de la feuille par rapport à la baseline.
+            if (this.isHomographyScaleReasonable(currentH)) {
+              const alpha = 0.85;
+              if (this.lastHomography) {
+                homography = currentH.map(
+                  (v, i) => alpha * v + (1 - alpha) * this.lastHomography![i]
+                );
+              } else {
+                homography = currentH;
+              }
+              this.lastHomography = homography.slice();
+              computedNewHomography = true;
 
-            const inlierStabilitySum = inlierCorrespondences.reduce(
-              (sum, correspondence) => sum + correspondence.score,
-              0
-            );
-            stability = Math.min(100, (inlierStabilitySum / matchedPoints) * 100);
+              const inlierStabilitySum = inlierCorrespondences.reduce(
+                (sum, correspondence) => sum + correspondence.score,
+                0
+              );
+              stability = Math.min(100, (inlierStabilitySum / matchedPoints) * 100);
+            } else {
+              // Homographie jugée non raisonnable (compression / explosion)
+              // → on refuse la mise à jour et on laisse lastHomography tel quel.
+              // stability reste tel quel (ou 0 si première frame).
+            }
           }
         }
         H.delete();
@@ -692,24 +735,34 @@ export class OpenCVTracker {
 
     const inlierIndexSet = new Set<number>(inlierCorrespondences.map(correspondence => correspondence.idx));
     const finalAnchorPositions: { x: number; y: number }[] = [];
+
+    // Les ancres viennent d'abord de l'homographie (plaque rigide)
     for (const idx of this.anchorIndices) {
       let finalPos: { x: number; y: number } | null = null;
-      if (inlierIndexSet.has(idx) && !anchorOutliers.has(idx)) {
-        const correspondence = correspondenceMap.get(idx);
-        if (correspondence) {
-          finalPos = { x: correspondence.dstX, y: correspondence.dstY };
-        }
-      }
 
-      if (!finalPos) {
-        const predicted = this.applyHomographyToPoint(
+      // 1) Si on a une homographie, on projette l'ancre depuis la référence
+      if (homography) {
+        const projected = this.applyHomographyToPoint(
           homography,
           this.referencePoints[idx].x,
           this.referencePoints[idx].y
         );
-        if (predicted) {
-          finalPos = predicted;
-        } else if (this.lastAcceptedAnchorPositions[idx]) {
+        if (projected) {
+          finalPos = projected;
+        }
+      }
+
+      // 2) Si pas d'homographie exploitable, on peut encore utiliser l'observation brute
+      if (!finalPos) {
+        const correspondence = correspondenceMap.get(idx);
+        if (correspondence && inlierIndexSet.has(idx) && !anchorOutliers.has(idx)) {
+          finalPos = { x: correspondence.dstX, y: correspondence.dstY };
+        }
+      }
+
+      // 3) Fallback : dernière bonne position ou position de référence
+      if (!finalPos) {
+        if (this.lastAcceptedAnchorPositions[idx]) {
           finalPos = { ...this.lastAcceptedAnchorPositions[idx] };
         } else {
           finalPos = { x: this.referencePoints[idx].x, y: this.referencePoints[idx].y };

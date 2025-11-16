@@ -197,7 +197,7 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
   };
 
   return (
-    <div className="space-y-4">
+    <div className="mobile-safe-area mobile-stack-gap space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Bibliothèque d'Ancres</h3>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -326,7 +326,7 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
       <canvas ref={canvasRef} className="hidden" />
 
       {anchors.length === 0 ? (
-        <Card className="p-8 text-center text-muted-foreground">
+        <Card className="mobile-card p-6 text-center text-muted-foreground sm:p-8">
           <p>Aucune ancre créée</p>
           <p className="text-sm mt-2">
             Créez votre première ancre en prenant une photo d'un objet avec des
