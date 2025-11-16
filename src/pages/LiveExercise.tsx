@@ -156,7 +156,7 @@ const LiveExercise = () => {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-hidden">
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-14 top-20 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute right-12 top-28 h-72 w-72 rounded-full bg-secondary/20 blur-3xl" />

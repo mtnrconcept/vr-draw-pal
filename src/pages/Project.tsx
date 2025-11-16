@@ -86,7 +86,7 @@ const Project = () => {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden" ref={containerRef}>
+    <div className="relative min-h-screen overflow-hidden" ref={containerRef}>
       {!isFullscreen && (
         <div className="absolute inset-0 -z-10">
           <div className="absolute left-12 top-24 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />

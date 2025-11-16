@@ -6,7 +6,7 @@ const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden">
+    <div className="relative min-h-screen overflow-hidden">
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-y-10 left-1/2 h-[480px] w-[480px] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
         <div className="absolute bottom-10 left-8 h-52 w-52 rounded-full bg-secondary/20 blur-3xl" />
