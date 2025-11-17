@@ -2,36 +2,66 @@ import { Button } from "@/components/ui/button";
 import { Camera, Palette, BookOpen, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
+const featureCards = [
+  {
+    title: "Projection AR tactile",
+    description:
+      "Utilisez votre caméra pour projeter des références, caler une grille et bloquer vos volumes en quelques gestes.",
+    icon: <Camera className="h-6 w-6" />,
+    accent: "from-primary/20 via-transparent to-black/10",
+  },
+  {
+    title: "Assistant IA express",
+    description:
+      "Recevez des critiques constructives, des rappels d'anatomie ou des variations d'éclairage à la demande.",
+    icon: <Sparkles className="h-6 w-6" />,
+    accent: "from-secondary/25 via-transparent to-black/10",
+  },
+  {
+    title: "Parcours progressifs",
+    description:
+      "Une bibliothèque d'exercices scénarisés pour structurer votre progression du croquis au rendu final.",
+    icon: <BookOpen className="h-6 w-6" />,
+    accent: "from-accent/25 via-transparent to-black/10",
+  },
+];
+
 const Index = () => {
   const navigate = useNavigate();
+  const ritualTags = ["Ghost Mentor", "Calibrage strobe", "Guidage VR/AR"];
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-y-10 left-1/2 h-[480px] w-[480px] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-10 left-8 h-52 w-52 rounded-full bg-secondary/20 blur-3xl" />
-        <div className="absolute top-24 right-16 h-56 w-56 rounded-full bg-accent/30 blur-3xl" />
-      </div>
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-4 pb-24 text-foreground sm:px-6 lg:px-10">
+        <header className="forest-card relative overflow-hidden rounded-[48px] border px-6 py-10 shadow-[var(--shadow-soft)] sm:px-10 lg:px-14">
+          <div className="forest-grid" aria-hidden="true" />
+          <div className="absolute -right-32 top-6 hidden h-64 w-64 rounded-full bg-primary/20 blur-3xl lg:block" />
+          <div className="absolute -left-28 bottom-0 hidden h-72 w-72 rounded-full bg-secondary/25 blur-3xl lg:block" />
 
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 pb-16 pt-24 sm:px-6 lg:px-8">
-        <header className="rounded-[36px] border border-white/60 bg-white/80 p-8 shadow-[var(--shadow-soft)] backdrop-blur-xl md:p-12">
           <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-6 text-left">
-              <div className="inline-flex items-center gap-3 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
-                <Palette className="h-4 w-4" />
-                Studio DrawMaster VR
+            <div className="space-y-7 text-left">
+              <div className="flex flex-wrap gap-3">
+                <div className="forest-chip inline-flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  Studio DrawMaster VR
+                </div>
+                <div className="forest-chip inline-flex items-center gap-2 bg-primary/20 text-primary-foreground">
+                  <Sparkles className="h-4 w-4" />
+                  Nouveau décor forêt
+                </div>
               </div>
-              <h1 className="text-4xl font-bold leading-tight text-foreground sm:text-5xl lg:text-6xl">
-                Projetez. Esquissez. Progressez avec un coach de réalité augmentée.
+              <h1 className="text-4xl font-extrabold leading-tight sm:text-5xl lg:text-6xl">
+                Projetez. Esquissez. Progressez depuis une clairière enchantée.
               </h1>
-              <p className="max-w-xl text-lg leading-relaxed text-muted-foreground">
-                Composez vos séances de dessin dans un espace immersif. Retrouvez vos outils, l'assistant IA et les exercices guidés dans une interface douce et tactile inspirée par le studio DrawMaster VR.
+              <p className="max-w-2xl text-lg leading-relaxed text-white/70">
+                Composez vos séances de dessin immersives entouré·e de feuillages lumineux. Laissez la parallax du décor guider
+                votre concentration pendant que l'assistant IA orchestre vos exercices.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Button
                   size="lg"
-                  onClick={() => navigate('/exercises')}
-                  className="h-14 rounded-full bg-primary px-8 text-base font-semibold shadow-[0_18px_40px_-20px_rgba(92,80,255,0.7)] transition hover:translate-y-[-2px] hover:bg-primary/90"
+                  onClick={() => navigate("/exercises")}
+                  className="h-14 rounded-full bg-primary px-8 text-base font-semibold text-primary-foreground shadow-[0_25px_60px_rgba(237,147,65,0.45)] transition hover:-translate-y-0.5 hover:bg-primary/90"
                 >
                   <BookOpen className="mr-2 h-5 w-5" />
                   Explorer les exercices
@@ -39,38 +69,51 @@ const Index = () => {
                 <Button
                   size="lg"
                   variant="outline"
-                  onClick={() => navigate('/project')}
-                  className="h-14 rounded-full border-white/70 bg-white/60 px-8 text-base font-semibold text-primary shadow-[0_16px_40px_-24px_rgba(24,20,60,0.3)] backdrop-blur-lg transition hover:bg-white"
+                  onClick={() => navigate("/project")}
+                  className="h-14 rounded-full border-white/30 bg-white/10 px-8 text-base font-semibold text-foreground shadow-[0_14px_45px_rgba(0,0,0,0.45)] transition hover:bg-white/15"
                 >
                   <Camera className="mr-2 h-5 w-5" />
                   Mode projection AR
                 </Button>
               </div>
+
+              <div className="flex flex-wrap gap-3 text-sm text-white/70">
+                {ritualTags.map((tag) => (
+                  <div key={tag} className="forest-pill">
+                    {tag}
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="grid gap-5">
-              <div className="rounded-[28px] border border-white/60 bg-gradient-to-br from-white/90 via-white/70 to-primary/10 p-6 shadow-[var(--shadow-card)] backdrop-blur-2xl">
-                <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
+            <div className="space-y-5">
+              <div className="relative overflow-hidden rounded-[32px] border border-white/15 bg-white/5 p-6 shadow-[inset_0_0_40px_rgba(255,255,255,0.05)]">
+                <div className="mb-4 flex items-center justify-between text-sm text-white/70">
                   <span>Progression hebdomadaire</span>
-                  <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">+24%</span>
+                  <span className="rounded-full bg-primary/30 px-3 py-1 text-xs font-semibold text-primary-foreground">+24%</span>
                 </div>
-                <p className="text-xl font-semibold text-foreground">15 séances AR terminées</p>
-                <p className="mt-2 text-sm text-muted-foreground">Reprenez là où vous vous êtes arrêté et continuez votre série de dessins immersifs.</p>
+                <p className="text-3xl font-semibold text-white">15 séances AR terminées</p>
+                <p className="mt-3 text-sm text-white/70">
+                  Reprenez là où vous vous êtes arrêté·e et laissez la clairière vous rappeler vos objectifs.
+                </p>
+                <div className="mt-6 h-1.5 rounded-full bg-white/10">
+                  <div className="h-full w-4/5 rounded-full bg-primary" />
+                </div>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-[26px] border border-white/50 bg-white/75 p-5 shadow-[var(--shadow-card)] backdrop-blur-2xl">
+                <div className="rounded-[30px] border border-white/15 bg-white/5 p-5 shadow-[inset_0_0_60px_rgba(255,255,255,0.04)]">
                   <Sparkles className="mb-3 h-6 w-6 text-secondary" />
-                  <h3 className="text-lg font-semibold text-foreground">Coaching IA</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  <h3 className="text-lg font-semibold text-white">Coaching IA</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/70">
                     Analyse instantanée de vos croquis avec recommandations personnalisées.
                   </p>
                 </div>
-                <div className="rounded-[26px] border border-white/50 bg-white/75 p-5 shadow-[var(--shadow-card)] backdrop-blur-2xl">
+                <div className="rounded-[30px] border border-white/15 bg-white/5 p-5 shadow-[inset_0_0_60px_rgba(255,255,255,0.04)]">
                   <Camera className="mb-3 h-6 w-6 text-primary" />
-                  <h3 className="text-lg font-semibold text-foreground">Projection fluide</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    Ajustez l'opacité, la grille et la lumière en un glissement pour tracer avec précision.
+                  <h3 className="text-lg font-semibold text-white">Projection fluide</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-white/70">
+                    Ajustez l'opacité, la grille et la lumière selon la profondeur de la scène.
                   </p>
                 </div>
               </div>
@@ -78,61 +121,50 @@ const Index = () => {
           </div>
         </header>
 
-        <main className="mt-12 flex flex-1 flex-col gap-12">
+        <main className="flex flex-1 flex-col gap-12">
           <section>
             <div className="grid gap-6 md:grid-cols-3">
-              {[{
-                title: "Projection AR tactile",
-                description: "Utilisez votre caméra pour projeter des références, caler une grille et bloquer vos volumes en quelques gestes.",
-                icon: <Camera className="h-6 w-6" />,
-                accent: "from-primary/15 to-primary/5",
-              }, {
-                title: "Assistant IA express",
-                description: "Recevez des critiques constructives, des rappels d'anatomie ou des variations d'éclairage à la demande.",
-                icon: <Sparkles className="h-6 w-6" />,
-                accent: "from-secondary/20 to-secondary/5",
-              }, {
-                title: "Parcours progressifs",
-                description: "Une bibliothèque d'exercices scénarisés pour structurer votre progression du croquis au rendu final.",
-                icon: <BookOpen className="h-6 w-6" />,
-                accent: "from-accent/20 to-accent/5",
-              }].map((feature, index) => (
+              {featureCards.map((feature, index) => (
                 <div
                   key={feature.title}
-                  className={`group rounded-[30px] border border-white/60 bg-gradient-to-br ${feature.accent} p-6 shadow-[var(--shadow-card)] backdrop-blur-xl transition-transform duration-300 hover:-translate-y-1`}
+                  className="group forest-card relative overflow-hidden rounded-[36px] border p-6 shadow-[var(--shadow-card)] transition-transform duration-300 hover:-translate-y-1"
                   style={{ transitionDelay: `${index * 60}ms` }}
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/70 text-primary shadow-inner shadow-white/40">
+                  <div className={`absolute inset-0 bg-gradient-to-br ${feature.accent} opacity-60`} />
+                  <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-primary shadow-inner shadow-black/40 backdrop-blur">
                     {feature.icon}
                   </div>
-                  <h3 className="mt-5 text-xl font-semibold text-foreground">{feature.title}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{feature.description}</p>
+                  <h3 className="relative mt-5 text-xl font-semibold text-white">{feature.title}</h3>
+                  <p className="relative mt-3 text-sm leading-relaxed text-white/70">{feature.description}</p>
                 </div>
               ))}
             </div>
           </section>
 
-          <section className="rounded-[32px] border border-white/60 bg-gradient-to-br from-primary/95 to-secondary/90 p-10 text-center shadow-[var(--shadow-soft)] text-white">
-            <h2 className="text-3xl font-bold sm:text-4xl">Prêt à débuter votre prochaine séance immersive ?</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-base text-white/80 sm:text-lg">
-              Activez la projection AR, choisissez un exercice guidé et laissez le coach IA vous accompagner étape par étape.
-            </p>
-            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-              <Button
-                size="lg"
-                onClick={() => navigate('/exercises')}
-                className="h-14 rounded-full bg-white px-8 text-base font-semibold text-primary shadow-[0_18px_40px_-22px_rgba(255,255,255,0.7)] transition hover:bg-white/90"
-              >
-                Lancer un exercice guidé
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => navigate('/drawmaster')}
-                className="h-14 rounded-full border-white/70 bg-white/10 px-8 text-base font-semibold text-white transition hover:bg-white/20"
-              >
-                Découvrir DrawMaster VR
-              </Button>
+          <section className="relative overflow-hidden rounded-[48px] border border-white/20 bg-gradient-to-r from-[rgba(12,38,28,0.92)] via-[rgba(18,44,36,0.9)] to-[rgba(48,79,54,0.9)] p-10 text-center text-white shadow-[var(--shadow-soft)]">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.12),transparent_45%)]" />
+            <div className="relative space-y-6">
+              <h2 className="text-3xl font-bold sm:text-4xl">Prêt·e à débuter votre prochaine séance immersive ?</h2>
+              <p className="mx-auto max-w-2xl text-base text-white/80 sm:text-lg">
+                Activez la projection AR, choisissez un exercice guidé et laissez le décor vous envelopper pendant que le coach IA rythme vos gestes.
+              </p>
+              <div className="flex flex-col justify-center gap-3 sm:flex-row">
+                <Button
+                  size="lg"
+                  onClick={() => navigate("/exercises")}
+                  className="h-14 rounded-full bg-white px-8 text-base font-semibold text-primary shadow-[0_18px_40px_rgba(255,255,255,0.35)] transition hover:bg-white/90"
+                >
+                  Lancer un exercice guidé
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={() => navigate("/drawmaster")}
+                  className="h-14 rounded-full border-white/60 bg-white/10 px-8 text-base font-semibold text-white transition hover:bg-white/20"
+                >
+                  Découvrir DrawMaster VR
+                </Button>
+              </div>
             </div>
           </section>
         </main>

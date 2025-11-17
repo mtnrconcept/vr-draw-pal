@@ -15,6 +15,7 @@ import {
 import { Camera, Plus, Trash2, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
 
 interface Anchor {
   id: string;
@@ -65,7 +66,7 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await requestCameraStream({
         video: { facingMode: "environment" },
       });
       streamRef.current = stream;
@@ -75,7 +76,11 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
       setIsCameraMode(true);
     } catch (error) {
       console.error("Erreur caméra:", error);
-      toast.error("Impossible d'accéder à la caméra");
+      const message =
+        error instanceof CameraAccessError
+          ? error.message
+          : "Impossible d'accéder à la caméra";
+      toast.error(message);
     }
   };
 

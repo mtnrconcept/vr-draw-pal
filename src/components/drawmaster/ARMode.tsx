@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { OpenCVTracker, TrackingPoint } from "@/lib/opencv/tracker";
+import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
 import PointTrackingManager from "./PointTrackingManager";
 import type { TrackingCalibrationResult } from "./TrackingCalibration";
 import { TrackingConfiguration, useTrackingPoints } from "@/hooks/useTrackingPoints";
@@ -261,7 +262,7 @@ export default function ARAnchorsMode({
   const startCamera = async () => {
     try {
       stopCamera();
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await requestCameraStream({
         video: { facingMode: "environment", width: 1280, height: 720 },
       });
 
@@ -281,7 +282,9 @@ export default function ARAnchorsMode({
     } catch (err) {
       console.error(err);
       let message = "Impossible d'accéder à la caméra";
-      if (err instanceof DOMException) {
+      if (err instanceof CameraAccessError) {
+        message = err.message;
+      } else if (err instanceof DOMException) {
         if (err.name === "NotReadableError") {
           message =
             "La caméra est déjà utilisée par une autre application. Fermez les autres flux vidéo puis réessayez.";
@@ -1415,8 +1418,8 @@ export default function ARAnchorsMode({
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <Card className="mobile-card space-y-6 rounded-[28px] border border-white/60 bg-white/80 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex-1">
+          <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center">
+            <div className="flex-1 min-w-[240px]">
               {!streamActive ? (
                 <Button
                   className="h-12 w-full rounded-full bg-gradient-to-r from-primary to-secondary text-xs font-semibold uppercase tracking-widest text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)] transition hover:scale-[1.01]"
@@ -1449,7 +1452,7 @@ export default function ARAnchorsMode({
             <Button
               type="button"
               variant="outline"
-              className="h-12 w-full rounded-full text-xs font-semibold uppercase tracking-widest sm:w-auto"
+              className="h-12 w-full min-w-[220px] rounded-full text-xs font-semibold uppercase tracking-widest lg:w-auto"
               onClick={handleNewConfigurationRequest}
             >
               <ImagePlus className="mr-2 h-4 w-4" />
@@ -1458,7 +1461,7 @@ export default function ARAnchorsMode({
           </div>
 
           {trackingActive && (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-[22px] border border-white/60 bg-white/75 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-[var(--shadow-card)] backdrop-blur-xl">
                 <div className="flex items-center justify-between">
                   <span>{strobeEnabled ? "Opacité contrôlée par le strobe" : "Opacité"}</span>

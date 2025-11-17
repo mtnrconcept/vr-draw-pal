@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { 
+import {
   Grid,
   Zap,
   Palette,
@@ -13,6 +13,7 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
 
 interface DrawingToolsProps {
   referenceImage: string | null;
@@ -75,16 +76,19 @@ const DrawingTools = ({
   };
 
   const toggleTorch = async () => {
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" }
+      stream = await requestCameraStream({
+        video: { facingMode: "environment" },
       });
       const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities() as any;
-      
-      if (capabilities.torch) {
+      const capabilities = track?.getCapabilities?.() as MediaTrackCapabilities & {
+        torch?: boolean;
+      };
+
+      if (track && capabilities?.torch) {
         await track.applyConstraints({
-          advanced: [{ torch: !torchEnabled } as any]
+          advanced: [{ torch: !torchEnabled } as MediaTrackConstraintSet],
         });
         setTorchEnabled(!torchEnabled);
         toast.success(torchEnabled ? "Lampe éteinte" : "Lampe allumée");
@@ -92,7 +96,13 @@ const DrawingTools = ({
         toast.error("La lampe torche n'est pas disponible sur cet appareil");
       }
     } catch (error) {
-      toast.error("Impossible de contrôler la lampe");
+      const message =
+        error instanceof CameraAccessError
+          ? error.message
+          : "Impossible de contrôler la lampe";
+      toast.error(message);
+    } finally {
+      stream?.getTracks().forEach((track) => track.stop());
     }
   };
 

@@ -5,6 +5,7 @@ import { ArrowLeft, Camera, Upload, MessageSquare, Maximize2, Grid3x3 } from "lu
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AIAssistant } from "@/components/AIAssistant";
+import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
 
 const Project = () => {
   const navigate = useNavigate();
@@ -20,7 +21,7 @@ const Project = () => {
 
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await requestCameraStream({
         video: {
           facingMode: "environment",
           width: { ideal: 1920 },
@@ -33,7 +34,11 @@ const Project = () => {
         toast.success("Caméra activée ! 📸");
       }
     } catch (error) {
-      toast.error("Impossible d'accéder à la caméra");
+      const message =
+        error instanceof CameraAccessError
+          ? error.message
+          : "Impossible d'accéder à la caméra";
+      toast.error(message);
       console.error("Camera error:", error);
     }
   };
@@ -86,16 +91,9 @@ const Project = () => {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden" ref={containerRef}>
-      {!isFullscreen && (
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute left-12 top-24 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />
-          <div className="absolute right-10 top-32 h-72 w-72 rounded-full bg-secondary/25 blur-3xl" />
-          <div className="absolute bottom-10 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
-        </div>
-      )}
+    <div className="relative min-h-screen overflow-hidden text-white" ref={containerRef}>
 
-      <div className={`mx-auto w-full ${isFullscreen ? "" : "max-w-6xl px-4 pb-16 pt-24 sm:px-6 lg:px-8"}`}>
+      <div className={`mx-auto w-full ${isFullscreen ? "" : "max-w-6xl px-4 pb-16 pt-16 sm:px-6 lg:px-8"}`}>
         {!isFullscreen && (
           <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-4">

@@ -4,6 +4,8 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Move, RotateCw, ZoomIn } from "lucide-react";
+import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
+import { toast } from "sonner";
 
 interface ClassicModeProps {
   referenceImage: string | null;
@@ -56,15 +58,20 @@ const ClassicMode = ({
     // Initialize camera stream
     const initCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
+        const stream = await requestCameraStream({
+          video: { facingMode: "environment" },
         });
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.onloadedmetadata = updateCameraAspectRatio;
         }
       } catch (error) {
+        const message =
+          error instanceof CameraAccessError
+            ? error.message
+            : "Erreur d'accès à la caméra";
         console.error("Erreur d'accès à la caméra:", error);
+        toast.error(message);
       }
     };
 
@@ -73,7 +80,7 @@ const ClassicMode = ({
     return () => {
       if (videoRef.current?.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);

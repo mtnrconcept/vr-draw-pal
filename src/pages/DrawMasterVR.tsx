@@ -23,10 +23,10 @@ const DrawMasterVR = () => {
   const [brightness, setBrightness] = useState(100);
 
   return (
-    <div className="mobile-safe-area relative min-h-screen overflow-x-hidden bg-gradient-to-br from-[#f9f7ff] via-white to-[#f2f5ff]">
-      <div className="absolute inset-0 -z-10">
-        <div className="absolute left-14 top-28 h-72 w-72 rounded-full bg-primary/15 blur-3xl" />
-        <div className="absolute right-10 top-20 h-80 w-80 rounded-full bg-secondary/25 blur-3xl" />
+    <div className="mobile-safe-area relative min-h-screen overflow-x-hidden text-white">
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
+        <div className="absolute left-14 top-28 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute right-10 top-20 h-80 w-80 rounded-full bg-secondary/30 blur-3xl" />
         <div className="absolute bottom-16 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
       </div>
 
@@ -68,47 +68,53 @@ const DrawMasterVR = () => {
         <div className="mobile-grid-collapse grid gap-8 lg:grid-cols-[0.98fr_1.02fr]">
           <Card className="mobile-card flex flex-col gap-6 rounded-[36px] border border-white/60 bg-white/85 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">Modes de dessin</h2>
-            <div className="grid gap-3">
-              <Button
-                variant={activeMode === "classic" ? "default" : "outline"}
-                className={`h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest ${activeMode === "classic" ? "bg-primary text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
-                onClick={() => setActiveMode("classic")}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-primary">
-                    <Camera className="h-5 w-5" />
-                  </span>
-                  Mode Classic
-                </div>
-                <span className="text-xs">Projection directe</span>
-              </Button>
-              <Button
-                variant={activeMode === "ar" ? "default" : "outline"}
-                className={`h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest ${activeMode === "ar" ? "bg-secondary text-white shadow-[0_18px_40px_-22px_rgba(255,151,118,0.6)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
-                onClick={() => setActiveMode("ar")}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-secondary">
-                    <Anchor className="h-5 w-5" />
-                  </span>
-                  Mode AR (Anchors)
-                </div>
-                <span className="text-xs">Réglages avancés</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-14 justify-between rounded-[24px] px-6 text-sm font-semibold uppercase tracking-widest border-dashed border-white/70 bg-white/50 text-muted-foreground"
-                disabled
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-muted-foreground">
-                    <Grid className="h-5 w-5" />
-                  </span>
-                  Mode VR (Vision Pro)
-                </div>
-                <span className="text-xs">Bientôt</span>
-              </Button>
-            </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <Button
+                  variant={activeMode === "classic" ? "default" : "outline"}
+                  className={`h-auto w-full rounded-[24px] px-5 py-4 text-sm font-semibold uppercase tracking-widest sm:flex-1 ${activeMode === "classic" ? "bg-primary text-white shadow-[0_18px_40px_-22px_rgba(92,80,255,0.7)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
+                  onClick={() => setActiveMode("classic")}
+                >
+                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-primary">
+                        <Camera className="h-5 w-5" />
+                      </span>
+                      <span className="text-sm sm:text-base">Mode Classic</span>
+                    </div>
+                    <span className="text-[11px] text-white/90 sm:text-xs">Projection directe</span>
+                  </div>
+                </Button>
+                <Button
+                  variant={activeMode === "ar" ? "default" : "outline"}
+                  className={`h-auto w-full rounded-[24px] px-5 py-4 text-sm font-semibold uppercase tracking-widest sm:flex-1 ${activeMode === "ar" ? "bg-secondary text-white shadow-[0_18px_40px_-22px_rgba(255,151,118,0.6)]" : "border-white/60 bg-white/70 text-foreground shadow-inner shadow-white/50"}`}
+                  onClick={() => setActiveMode("ar")}
+                >
+                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-secondary">
+                        <Anchor className="h-5 w-5" />
+                      </span>
+                      <span className="text-sm sm:text-base">Mode AR (Anchors)</span>
+                    </div>
+                    <span className="text-[11px] text-white/90 sm:text-xs">Réglages avancés</span>
+                  </div>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-auto w-full rounded-[24px] px-5 py-4 text-sm font-semibold uppercase tracking-widest border-dashed border-white/70 bg-white/50 text-muted-foreground sm:flex-1"
+                  disabled
+                >
+                  <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/40 text-muted-foreground">
+                        <Grid className="h-5 w-5" />
+                      </span>
+                      <span className="text-sm sm:text-base">Mode VR (Vision Pro)</span>
+                    </div>
+                    <span className="text-[11px] sm:text-xs">Bientôt</span>
+                  </div>
+                </Button>
+              </div>
 
             <DrawingTools
               referenceImage={referenceImage}

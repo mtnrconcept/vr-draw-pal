@@ -8,92 +8,120 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 33 90% 96%;
-    --foreground: 246 32% 22%;
+    --background: 146 25% 10%;
+    --foreground: 39 55% 94%;
 
-    --card: 30 85% 97%;
-    --card-foreground: 246 32% 22%;
+    --card: 156 23% 16%;
+    --card-foreground: 39 55% 94%;
 
-    --popover: 30 85% 97%;
-    --popover-foreground: 246 32% 22%;
+    --popover: 156 23% 14%;
+    --popover-foreground: 39 55% 94%;
 
-    --primary: 249 88% 64%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 27 92% 62%;
+    --primary-foreground: 27 22% 12%;
 
-    --secondary: 16 95% 70%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 140 38% 56%;
+    --secondary-foreground: 146 25% 10%;
 
-    --muted: 25 55% 92%;
-    --muted-foreground: 246 20% 42%;
+    --muted: 155 20% 24%;
+    --muted-foreground: 41 32% 84%;
 
-    --accent: 154 60% 68%;
-    --accent-foreground: 246 32% 22%;
+    --accent: 86 48% 62%;
+    --accent-foreground: 146 25% 10%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 3 74% 56%;
+    --destructive-foreground: 40 65% 96%;
 
-    --border: 28 52% 90%;
-    --input: 28 52% 90%;
-    --ring: 249 88% 64%;
+    --border: 156 23% 30%;
+    --input: 156 23% 28%;
+    --ring: 27 92% 62%;
 
     --radius: 1.75rem;
 
-    --gradient-hero: linear-gradient(135deg, hsl(249 88% 64%), hsl(274 100% 76%));
-    --gradient-card: linear-gradient(180deg, hsl(30 90% 98%), hsl(24 70% 94%));
-    --shadow-soft: 0 32px 80px -45px hsl(246 50% 22% / 0.45);
-    --shadow-card: 0 24px 60px -35px hsl(246 50% 22% / 0.35);
+    --gradient-hero: linear-gradient(
+      120deg,
+      hsl(143 32% 22% / 0.85),
+      hsl(34 89% 54% / 0.85)
+    );
+    --gradient-card: linear-gradient(
+      180deg,
+      hsl(152 32% 18% / 0.92),
+      hsl(152 26% 14% / 0.9)
+    );
+    --shadow-soft: 0 45px 120px -35px hsl(160 58% 6% / 0.85);
+    --shadow-card: 0 32px 90px -30px hsl(160 55% 4% / 0.78);
 
-    --sidebar-background: 33 90% 96%;
-    --sidebar-foreground: 246 32% 22%;
-    --sidebar-primary: 249 88% 64%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 30 85% 97%;
-    --sidebar-accent-foreground: 246 32% 22%;
-    --sidebar-border: 28 52% 90%;
-    --sidebar-ring: 249 88% 64%;
+    --sidebar-background: 146 25% 10%;
+    --sidebar-foreground: 39 55% 94%;
+    --sidebar-primary: 27 92% 62%;
+    --sidebar-primary-foreground: 27 22% 12%;
+    --sidebar-accent: 156 23% 16%;
+    --sidebar-accent-foreground: 39 55% 94%;
+    --sidebar-border: 156 23% 30%;
+    --sidebar-ring: 27 92% 62%;
+
+    --surface-glow: hsla(154, 33%, 16%, 0.78);
+    --surface-deep: hsla(156, 43%, 12%, 0.78);
+    --surface-ember: hsla(27, 92%, 62%, 0.35);
+
+    /* zone de sécurité sous le logo + plage de fondu pour le calque supérieur */
+    --logo-safe-zone: 20px;
+    --logo-fade-range: 9px;
   }
 
   .dark {
-    --background: 248 26% 12%;
-    --foreground: 33 90% 96%;
+    --background: 153 20% 6%;
+    --foreground: 41 55% 92%;
 
-    --card: 247 30% 16%;
-    --card-foreground: 33 90% 96%;
+    --card: 159 20% 12%;
+    --card-foreground: 41 55% 92%;
 
-    --popover: 247 30% 16%;
-    --popover-foreground: 33 90% 96%;
+    --popover: 159 20% 10%;
+    --popover-foreground: 41 55% 92%;
 
-    --primary: 249 88% 70%;
-    --primary-foreground: 248 26% 12%;
+    --primary: 27 92% 62%;
+    --primary-foreground: 27 22% 12%;
 
-    --secondary: 16 95% 70%;
-    --secondary-foreground: 248 26% 12%;
+    --secondary: 139 36% 52%;
+    --secondary-foreground: 153 20% 6%;
 
-    --muted: 247 20% 25%;
-    --muted-foreground: 33 45% 85%;
+    --muted: 155 18% 18%;
+    --muted-foreground: 41 32% 84%;
 
-    --accent: 154 60% 60%;
-    --accent-foreground: 248 26% 12%;
+    --accent: 88 42% 58%;
+    --accent-foreground: 153 20% 6%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 2 80% 52%;
+    --destructive-foreground: 41 55% 92%;
 
-    --border: 247 24% 32%;
-    --input: 247 24% 32%;
-    --ring: 249 88% 70%;
+    --border: 157 24% 26%;
+    --input: 157 24% 26%;
+    --ring: 27 92% 62%;
 
-    --gradient-hero: linear-gradient(135deg, hsl(249 88% 64%), hsl(274 100% 76%));
-    --gradient-card: linear-gradient(180deg, hsl(247 30% 16%), hsl(247 26% 20%));
-    --shadow-soft: 0 32px 80px -45px hsl(248 40% 6% / 0.65);
-    --shadow-card: 0 24px 60px -35px hsl(248 40% 6% / 0.55);
-    --sidebar-background: 248 26% 12%;
-    --sidebar-foreground: 33 90% 96%;
-    --sidebar-primary: 249 88% 64%;
-    --sidebar-primary-foreground: 248 26% 12%;
-    --sidebar-accent: 247 30% 16%;
-    --sidebar-accent-foreground: 33 90% 96%;
-    --sidebar-border: 247 24% 32%;
-    --sidebar-ring: 249 88% 70%;
+    --gradient-hero: linear-gradient(
+      135deg,
+      hsl(153 32% 16% / 0.85),
+      hsl(32 92% 54% / 0.8)
+    );
+    --gradient-card: linear-gradient(
+      180deg,
+      hsl(159 28% 14% / 0.88),
+      hsl(156 24% 12% / 0.92)
+    );
+    --shadow-soft: 0 45px 120px -35px hsl(160 58% 4% / 0.9);
+    --shadow-card: 0 32px 90px -30px hsl(160 55% 4% / 0.72);
+
+    --sidebar-background: 153 20% 6%;
+    --sidebar-foreground: 41 55% 92%;
+    --sidebar-primary: 27 92% 62%;
+    --sidebar-primary-foreground: 27 22% 12%;
+    --sidebar-accent: 159 20% 12%;
+    --sidebar-accent-foreground: 41 55% 92%;
+    --sidebar-border: 157 24% 26%;
+    --sidebar-ring: 27 92% 62%;
+
+    --logo-safe-zone: 220px;
+    --logo-fade-range: 32px;
   }
 }
 
@@ -119,12 +147,12 @@ All colors MUST be HSL.
   body {
     @apply text-foreground;
     margin: 0;
-    background-image:
-      radial-gradient(circle at 10% 20%, hsl(274 100% 92% / 0.55) 0, transparent 55%),
-      radial-gradient(circle at 85% 15%, hsl(16 95% 80% / 0.4) 0, transparent 50%),
-      radial-gradient(circle at 50% 85%, hsl(154 60% 75% / 0.35) 0, transparent 55%),
-      linear-gradient(180deg, hsl(33 90% 96%), hsl(26 80% 92%));
-    background-attachment: fixed;
+    min-height: 100vh;
+    background-color: hsl(var(--background));
+    position: relative;
+    font-family: "Segoe UI", "Nunito", "Inter", system-ui, -apple-system,
+      BlinkMacSystemFont, sans-serif;
+    color: hsl(var(--foreground));
   }
 }
 
@@ -141,6 +169,189 @@ All colors MUST be HSL.
 .mobile-stack-gap {
   gap: 1.25rem;
 }
+
+/* ---------- SHELL + FONDS FORET SUPERPOSÉS ---------- */
+
+.enchanted-shell {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Fond de base (forêt) derrière tout */
+.enchanted-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -2;
+  background-image: url("/fond2.jpg");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  filter: saturate(110%) contrast(96%) brightness(0.92);
+  animation: parallax-pan 70s ease-in-out infinite;
+  transform: scale(1.05);
+  transform-origin: center;
+}
+
+/* Copie du fond + lueurs, AU-DESSUS du contenu, avec masque vertical */
+.enchanted-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2; /* > contenu (1), < logo (3) */
+  background-image:
+    url("/fond2.jpg"),
+    radial-gradient(circle at 20% 15%, rgba(255, 240, 212, 0.3) 0, transparent 45%),
+    radial-gradient(circle at 80% 20%, rgba(255, 210, 185, 0.25) 0, transparent 40%),
+    radial-gradient(circle at 30% 80%, rgba(145, 233, 206, 0.2) 0, transparent 45%);
+  background-size: cover, auto, auto, auto;
+  background-position: center top, 20% 15%, 80% 20%, 30% 80%;
+  background-repeat: no-repeat;
+  filter: saturate(115%) brightness(0.98);
+  opacity: 0.98;
+
+  /* masque : plein en haut, disparaît progressivement sous le logo */
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0) var(--logo-safe-zone),
+    rgba(0, 0, 0, 0) calc(var(--logo-safe-zone) + var(--logo-fade-range) * 2),
+    rgba(0, 0, 0, 0) 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 1) 20%,
+    rgba(0, 0, 0, 0.8) var(--logo-safe-zone),
+    rgba(0, 0, 0, 0) calc(var(--logo-safe-zone) + var(--logo-fade-range) * 4),
+    rgba(0, 0, 0, 0) 100%
+  );
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+/* ---------- CONTENU + LOGO ---------- */
+
+.enchanted-content {
+  position: relative;
+  z-index: 1; /* entre les deux fonds */
+  padding-top: calc(var(--logo-safe-zone) + clamp(0.35rem, 0.8vh, 1.5rem));
+}
+
+.enchanted-logo {
+  position: fixed;
+  top: clamp(-0.5rem, 0.8vh, 0.75rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+  pointer-events: none;
+  z-index: 3; /* au-dessus de la copie masquée */
+}
+
+.enchanted-logo img {
+  width: clamp(180px, 26vw, 360px);
+  height: auto;
+  filter: drop-shadow(0 25px 45px rgba(7, 10, 9, 0.65));
+}
+
+/* ---------- CARTES & UI ---------- */
+
+.forest-card {
+  background: var(--surface-glow);
+  border: 1px solid rgba(161, 221, 195, 0.25);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(28px) saturate(140%);
+  color: inherit;
+}
+
+.forest-card--accent {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255, 220, 180, 0.12), transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(252, 171, 109, 0.1), transparent 50%),
+    var(--surface-deep);
+  border-color: rgba(255, 205, 158, 0.25);
+}
+
+.forest-chip {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: hsl(var(--foreground));
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.4rem 1.25rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.forest-pill {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: hsl(var(--foreground));
+  border-radius: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.forest-grid {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+  opacity: 0.35;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.firefly {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 241, 204, 0.9);
+  box-shadow:
+    0 0 8px rgba(255, 241, 204, 0.9),
+    0 0 16px rgba(255, 205, 114, 0.6);
+  animation: firefly 14s ease-in-out infinite;
+  position: absolute;
+}
+
+/* override des classes utilitaires blanches pour l’ambiance nuit forêt */
+
+.bg-white\/60,
+.bg-white\/65,
+.bg-white\/70,
+.bg-white\/75,
+.bg-white\/80,
+.bg-white\/85 {
+  background-color: rgba(6, 18, 15, 0.82) !important;
+}
+
+.bg-white\/90 {
+  background-color: rgba(8, 22, 18, 0.86) !important;
+}
+
+.border-white\/30,
+.border-white\/40,
+.border-white\/50,
+.border-white\/60,
+.border-white\/65,
+.border-white\/70 {
+  border-color: rgba(161, 221, 195, 0.35) !important;
+}
+
+.bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ---------- ANIMATIONS ---------- */
 
 @keyframes shimmer {
   0% {
@@ -196,6 +407,51 @@ All colors MUST be HSL.
   }
 }
 
+@keyframes parallax-pan {
+  0% {
+    transform: scale(1.04) translate3d(0, -18px, 0);
+  }
+  50% {
+    transform: scale(1.1) translate3d(0, 16px, 0);
+  }
+  100% {
+    transform: scale(1.04) translate3d(0, -18px, 0);
+  }
+}
+
+@keyframes twinkle {
+  0% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.6;
+    filter: drop-shadow(0 0 18px rgba(255, 225, 170, 0.4));
+  }
+  100% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes firefly {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.5;
+  }
+  25% {
+    transform: translate3d(-35px, -25px, 0) scale(1.2);
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(15px, 10px, 0) scale(0.8);
+    opacity: 0.7;
+  }
+  75% {
+    transform: translate3d(-10px, 35px, 0) scale(1.1);
+    opacity: 0.9;
+  }
+}
+
 .animate-pencil-path {
   animation: pencil-path 1.8s ease-in-out infinite;
 }
@@ -213,6 +469,8 @@ All colors MUST be HSL.
 .animate-pencil-progress {
   animation: pencil-progress 5s linear forwards;
 }
+
+/* ---------- RESPONSIVE MOBILE ---------- */
 
 @media (max-width: 640px) {
   .mobile-card {
@@ -237,5 +495,16 @@ All colors MUST be HSL.
     display: flex !important;
     flex-direction: column;
   }
-}
 
+  .enchanted-logo {
+    top: 0;
+  }
+
+  .enchanted-logo img {
+    width: clamp(140px, 50vw, 240px);
+  }
+
+  .enchanted-content {
+    padding-top: calc(var(--logo-safe-zone, 220px) + 0.35rem);
+  }
+}

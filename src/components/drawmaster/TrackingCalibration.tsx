@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Camera, Undo, Check, X, Pencil, ImagePlus } from "lucide-react";
 import { TrackingPoint } from "@/lib/opencv/tracker";
+import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
 
 // Simple toast replacement
 const toast = {
@@ -359,8 +360,8 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
 
   const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: 1280, height: 720 }
+      const stream = await requestCameraStream({
+        video: { facingMode: "environment", width: 1280, height: 720 },
       });
 
       if (videoRef.current) {
@@ -383,7 +384,9 @@ export default function TrackingCalibration({ onComplete, onCancel }: TrackingCa
     } catch (err) {
       console.error(err);
       let message = "Impossible d'accéder à la caméra";
-      if (err instanceof DOMException) {
+      if (err instanceof CameraAccessError) {
+        message = err.message;
+      } else if (err instanceof DOMException) {
         if (err.name === "NotReadableError") {
           message =
             "La caméra est déjà utilisée par un autre mode. Fermez les autres flux vidéo puis réessayez.";
