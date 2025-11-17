@@ -55,9 +55,9 @@ export const AIAssistant = ({ onClose }: AIAssistantProps) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/70 backdrop-blur-xl md:items-center">
-      <Card className="m-0 w-full max-w-2xl rounded-t-[32px] border border-white/60 bg-white/80 shadow-[var(--shadow-soft)] backdrop-blur-2xl md:h-[720px] md:rounded-[40px]">
-        <div className="flex h-full flex-col">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-background/70 backdrop-blur-xl md:items-center">
+      <Card className="m-0 flex h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[32px] border border-white/60 bg-white/80 shadow-[var(--shadow-soft)] backdrop-blur-2xl md:h-[720px] md:rounded-[40px]">
+        <div className="flex h-full flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between rounded-t-[32px] border-b border-white/50 bg-gradient-to-r from-primary/90 via-primary to-secondary px-6 py-5 text-white md:rounded-t-[40px]">
             <div>
@@ -75,7 +75,7 @@ export const AIAssistant = ({ onClose }: AIAssistantProps) => {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          <div className="flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-6 py-5">
             {messages.map((message, index) => (
               <div
                 key={index}
@@ -103,7 +103,7 @@ export const AIAssistant = ({ onClose }: AIAssistantProps) => {
           </div>
 
           {/* Input */}
-          <div className="rounded-b-[32px] border-t border-white/60 bg-white/70 px-6 py-5 backdrop-blur md:rounded-b-[40px]">
+          <div className="overflow-hidden rounded-b-[32px] border-t border-white/60 bg-white/70 px-6 py-5 backdrop-blur md:rounded-b-[40px]">
             <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 value={input}

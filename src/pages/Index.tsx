@@ -31,8 +31,8 @@ const Index = () => {
   const ritualTags = ["Ghost Mentor", "Calibrage strobe", "Guidage VR/AR"];
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-4 pb-24 text-foreground sm:px-6 lg:px-10">
+    <div className="relative min-h-screen w-full overflow-hidden">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 overflow-x-hidden px-4 pb-24 text-foreground sm:px-6 lg:px-10">
         <header className="forest-card relative overflow-hidden rounded-[48px] border px-6 py-10 shadow-[var(--shadow-soft)] sm:px-10 lg:px-14">
           <div className="forest-grid" aria-hidden="true" />
           <div className="absolute -right-32 top-6 hidden h-64 w-64 rounded-full bg-primary/20 blur-3xl lg:block" />

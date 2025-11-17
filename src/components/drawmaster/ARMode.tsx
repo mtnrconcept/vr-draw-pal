@@ -848,7 +848,7 @@ export default function ARAnchorsMode({
                   : null;
               })
               .filter(
-                (value): value is { id: string; label?: string; x: number; y: number } =>
+                (value): value is { id: string; label: string; x: number; y: number } =>
                   Boolean(value)
               );
 
