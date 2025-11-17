@@ -23,14 +23,14 @@ const DrawMasterVR = () => {
   const [brightness, setBrightness] = useState(100);
 
   return (
-    <div className="mobile-safe-area relative min-h-screen overflow-x-hidden text-white">
+    <div className="mobile-safe-area relative min-h-screen w-full overflow-x-hidden text-white">
       <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
         <div className="absolute left-14 top-28 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
         <div className="absolute right-10 top-20 h-80 w-80 rounded-full bg-secondary/30 blur-3xl" />
         <div className="absolute bottom-16 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-20 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 pb-20 pt-20 sm:px-6 lg:px-8">
         <Card className="mobile-card mb-12 flex flex-col gap-6 rounded-[40px] border border-white/70 bg-white/85 p-5 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-6 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold uppercase tracking-widest text-primary">

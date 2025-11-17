@@ -76,8 +76,8 @@ const Exercises = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="mx-auto w-full max-w-6xl px-4 pb-16 pt-16 text-white sm:px-6 lg:px-8">
+    <div className="relative min-h-screen w-full overflow-hidden">
+      <div className="mx-auto w-full max-w-6xl overflow-x-hidden px-4 pb-16 pt-16 text-white sm:px-6 lg:px-8">
         <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <Button
             variant="ghost"

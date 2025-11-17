@@ -91,9 +91,9 @@ const Project = () => {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden text-white" ref={containerRef}>
+    <div className="relative min-h-screen w-full overflow-hidden text-white" ref={containerRef}>
 
-      <div className={`mx-auto w-full ${isFullscreen ? "" : "max-w-6xl px-4 pb-16 pt-16 sm:px-6 lg:px-8"}`}>
+      <div className={`mx-auto w-full overflow-x-hidden ${isFullscreen ? "" : "max-w-6xl px-4 pb-16 pt-16 sm:px-6 lg:px-8"}`}>
         {!isFullscreen && (
           <div className="mb-8 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-4">

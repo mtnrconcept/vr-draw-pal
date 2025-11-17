@@ -156,14 +156,14 @@ const LiveExercise = () => {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden">
+    <div className="relative min-h-screen w-full overflow-hidden text-white">
       <div className="absolute inset-0 -z-10">
         <div className="absolute left-14 top-20 h-64 w-64 rounded-full bg-primary/15 blur-3xl" />
         <div className="absolute right-12 top-28 h-72 w-72 rounded-full bg-secondary/20 blur-3xl" />
         <div className="absolute bottom-16 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-accent/25 blur-3xl" />
       </div>
 
-      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-24 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-5xl overflow-x-hidden px-4 pb-16 pt-24 sm:px-6 lg:px-8">
         <div className="mb-8 flex items-center justify-between">
           <Button
             variant="ghost"
