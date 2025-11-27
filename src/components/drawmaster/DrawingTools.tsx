@@ -62,6 +62,9 @@ const DrawingTools = ({
 }: DrawingToolsProps) => {
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [timelapseRecording, setTimelapseRecording] = useState(false);
+  // Recorder instance and chunks used for time‑lapse video capture
+  const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
+  const [chunks, setChunks] = useState<Blob[]>([]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -107,8 +110,62 @@ const DrawingTools = ({
   };
 
   const toggleTimelapse = () => {
-    setTimelapseRecording(!timelapseRecording);
-    toast.success(timelapseRecording ? "Enregistrement arrêté" : "Enregistrement démarré");
+    // When starting a time‑lapse we capture the current video stream and record a video.
+    if (!timelapseRecording) {
+      const videoElement = document.querySelector<HTMLVideoElement>('[data-drawmaster-video]');
+      if (!videoElement || typeof videoElement.captureStream !== "function") {
+        toast.error("Aucune vidéo active à enregistrer");
+        return;
+      }
+      try {
+        const supportedMimeTypes = [
+          "video/mp4;codecs=h264",
+          "video/mp4",
+          "video/webm;codecs=vp9",
+          "video/webm",
+        ];
+        const selectedMimeType =
+          supportedMimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) ?? "video/webm";
+        const fileExtension = selectedMimeType.includes("mp4") ? "mp4" : "webm";
+        // Capture the active video stream instead of the canvas so the export matches the video module.
+        const stream = videoElement.captureStream
+          ? videoElement.captureStream(24)
+          : (videoElement as any).mozCaptureStream?.(24);
+        if (!stream) {
+          toast.error("Impossible de capturer la vidéo");
+          return;
+        }
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+        const recordedChunks: Blob[] = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+        };
+        mediaRecorder.onstop = () => {
+          // Assemble the recorded chunks into a single Blob and trigger a download.
+          const blob = new Blob(recordedChunks, { type: selectedMimeType });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `timelapse.${fileExtension}`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast.success(`Time‑lapse enregistré en .${fileExtension}`);
+        };
+        mediaRecorder.start();
+        setRecorder(mediaRecorder);
+        setChunks(recordedChunks);
+        setTimelapseRecording(true);
+        toast.success("Enregistrement démarré");
+      } catch (err) {
+        toast.error("Impossible de démarrer l'enregistrement");
+      }
+    } else {
+      // Stop the current recording. The onstop callback will handle file creation.
+      recorder?.stop();
+      setTimelapseRecording(false);
+    }
   };
 
   return (
@@ -134,6 +191,7 @@ const DrawingTools = ({
         </Button>
       </div>
 
+      {/* Grille */}
       <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
@@ -179,6 +237,7 @@ const DrawingTools = ({
         )}
       </Card>
 
+      {/* Strobe */}
       <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
@@ -243,6 +302,7 @@ const DrawingTools = ({
         )}
       </Card>
 
+      {/* Filtres */}
       <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
         <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
           <Palette className="h-4 w-4 text-accent" />
@@ -278,6 +338,7 @@ const DrawingTools = ({
         </div>
       </Card>
 
+      {/* Outils divers */}
       <div className="space-y-3 rounded-[28px] border border-white/60 bg-white/70 p-5 shadow-[var(--shadow-card)] backdrop-blur-xl">
         <Button
           variant="outline"

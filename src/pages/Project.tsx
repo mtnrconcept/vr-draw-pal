@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { AIAssistant } from "@/components/AIAssistant";
 import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
+import { GlobalMenu } from "@/components/GlobalMenu";
 
 const Project = () => {
   const navigate = useNavigate();
@@ -92,6 +93,7 @@ const Project = () => {
 
   return (
     <div className="relative min-h-screen overflow-hidden text-white" ref={containerRef}>
+      <GlobalMenu />
 
       <div className={`mx-auto w-full ${isFullscreen ? "" : "max-w-6xl px-4 pb-16 pt-16 sm:px-6 lg:px-8"}`}>
         {!isFullscreen && (

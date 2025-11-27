@@ -128,6 +128,7 @@ export default function ARAnchorsMode({
   const [currentOverlayAnchors, setCurrentOverlayAnchors] = useState<TrackingPoint[]>([]);
   const [overlayDimensions, setOverlayDimensions] = useState<{ width: number; height: number } | null>(null);
   const [isManualAnchorEditing, setIsManualAnchorEditing] = useState(false);
+  const [isChangingOverlay, setIsChangingOverlay] = useState(false);
   const [projectedOverlayAnchors, setProjectedOverlayAnchors] = useState<
     { id: string; label?: string; x: number; y: number }[]
   >([]);
@@ -426,18 +427,18 @@ export default function ARAnchorsMode({
       const image = source.startsWith("data:")
         ? await loadImage(source, false)
         : await (async () => {
-            try {
-              const response = await fetch(source, { cache: "no-cache" });
-              if (!response.ok) {
-                throw new Error();
-              }
-              const blob = await response.blob();
-              objectUrl = URL.createObjectURL(blob);
-              return loadImage(objectUrl, true);
-            } catch {
-              throw new Error("Impossible de charger l'image de référence");
+          try {
+            const response = await fetch(source, { cache: "no-cache" });
+            if (!response.ok) {
+              throw new Error();
             }
-          })();
+            const blob = await response.blob();
+            objectUrl = URL.createObjectURL(blob);
+            return loadImage(objectUrl, true);
+          } catch {
+            throw new Error("Impossible de charger l'image de référence");
+          }
+        })();
 
       const canvas = document.createElement("canvas");
       canvas.width = image.width;
@@ -537,7 +538,7 @@ export default function ARAnchorsMode({
         if (!silent) {
           toast.error(
             (error as Error).message ||
-              "Impossible d'initialiser le tracking"
+            "Impossible d'initialiser le tracking"
           );
         }
         trackerRef.current?.dispose();
@@ -840,11 +841,11 @@ export default function ARAnchorsMode({
                 );
                 return projectedPoint
                   ? {
-                      id: anchor.id,
-                      label: anchor.label,
-                      x: projectedPoint.x,
-                      y: projectedPoint.y,
-                    }
+                    id: anchor.id,
+                    label: anchor.label,
+                    x: projectedPoint.x,
+                    y: projectedPoint.y,
+                  }
                   : null;
               })
               .filter(
@@ -1059,6 +1060,39 @@ export default function ARAnchorsMode({
       transform?.delete();
       src?.delete();
       dst?.delete();
+    }
+  };
+
+  const updateOverlayImage = async (newOverlayUrl: string) => {
+    if (!activeConfigRef.current) {
+      toast.error("Aucune configuration active. Veuillez d'abord configurer les ancres.");
+      return;
+    }
+
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = newOverlayUrl;
+      });
+      setOverlayImage(img);
+
+      // Update the configuration
+      const updatedConfig: TrackingConfiguration = {
+        ...activeConfigRef.current,
+        overlayImage: newOverlayUrl,
+        overlayPreview: newOverlayUrl,
+      };
+      activeConfigRef.current = updatedConfig;
+      updateConfiguration(updatedConfig);
+
+      setOverlayImageUrl(newOverlayUrl);
+      toast.success("Image overlay mise à jour");
+    } catch (error) {
+      console.error("Failed to load new overlay image:", error);
+      toast.error("Impossible de charger la nouvelle image");
     }
   };
 
@@ -1458,6 +1492,17 @@ export default function ARAnchorsMode({
               <ImagePlus className="mr-2 h-4 w-4" />
               Importer une image AR
             </Button>
+            {currentConfig && (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full min-w-[220px] rounded-full text-xs font-semibold uppercase tracking-widest lg:w-auto"
+                onClick={() => setIsChangingOverlay(true)}
+              >
+                <ImagePlus className="mr-2 h-4 w-4" />
+                Changer l'image
+              </Button>
+            )}
           </div>
 
           {trackingActive && (
@@ -1545,6 +1590,49 @@ export default function ARAnchorsMode({
           </Card>
         </div>
       </div>
+
+      {isChangingOverlay && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <div className="w-full max-w-md rounded-lg bg-white p-6">
+            <h3 className="mb-4 text-lg font-semibold text-foreground">
+              Changer l&apos;image overlay
+            </h3>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Sélectionnez une nouvelle image à projeter. Les ancres de tracking resteront inchangées.
+            </p>
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  const reader = new FileReader();
+                  reader.onload = async (event) => {
+                    const dataUrl = event.target?.result as string;
+                    if (dataUrl) {
+                      await updateOverlayImage(dataUrl);
+                      setIsChangingOverlay(false);
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }
+              }}
+              className="mb-4 w-full"
+            />
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setIsChangingOverlay(false)}
+                className="flex-1"
+              >
+                Annuler
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

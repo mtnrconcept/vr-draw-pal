@@ -1,6 +1,18 @@
+import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Camera, Palette, BookOpen, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { GlobalMenu } from "@/components/GlobalMenu";
+
+// Logo component - h-64 (256px) TRÈS grand, avec animation de fondu et montée
+const Logo = ({ isIntro }: { isIntro: boolean }) => (
+  <div
+    className={`fixed left-0 right-0 z-[100] flex justify-center transition-all duration-1000 ease-out ${isIntro ? "top-[40vh] opacity-0" : "top-6 opacity-100"
+      }`}
+  >
+    <img src="/logo2.png" alt="DRAWMASTER" className="h-64 w-auto object-contain drop-shadow-2xl" />
+  </div>
+);
 
 const featureCards = [
   {
@@ -29,11 +41,35 @@ const featureCards = [
 const Index = () => {
   const navigate = useNavigate();
   const ritualTags = ["Ghost Mentor", "Calibrage strobe", "Guidage VR/AR"];
+  const [isMobile, setIsMobile] = useState(false);
+  const [introLogo, setIntroLogo] = useState(true);
+
+  // Animation: logo apparaît après 500ms
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroLogo(false), 500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 820px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
-      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 px-4 pb-24 text-foreground sm:px-6 lg:px-10">
-        <header className="forest-card relative overflow-hidden rounded-[48px] border px-6 py-10 shadow-[var(--shadow-soft)] sm:px-10 lg:px-14">
+      <Logo isIntro={introLogo} />
+      <GlobalMenu />
+      {/* Marges: Desktop 420px (256+24+140), Mobile 330px (256+24+50) */}
+      <div
+        className={`mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-12 text-foreground transition-all duration-1000 ease-out ${isMobile ? "px-4 pb-16 pt-[330px]" : "px-4 pb-24 pt-[420px] sm:px-6 lg:px-10"
+          } ${introLogo ? "translate-y-20 opacity-0" : "translate-y-0 opacity-100"
+          }`}
+      >
+        <header className="forest-card relative z-10 overflow-hidden rounded-[48px] border px-6 py-10 shadow-[var(--shadow-soft)] sm:px-10 lg:px-14">
           <div className="forest-grid" aria-hidden="true" />
           <div className="absolute -right-32 top-6 hidden h-64 w-64 rounded-full bg-primary/20 blur-3xl lg:block" />
           <div className="absolute -left-28 bottom-0 hidden h-72 w-72 rounded-full bg-secondary/25 blur-3xl lg:block" />

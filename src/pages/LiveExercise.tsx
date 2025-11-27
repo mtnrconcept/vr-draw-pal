@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Sparkles, Loader2, CheckCircle2, MessageCircle } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import { invokeEdgeFunction } from "@/integrations/supabase/client";
+import { LocalLLMService } from "@/lib/ai/local-llm";
 import { Input } from "@/components/ui/input";
 import { DrawingLoadingAnimation } from "@/components/DrawingLoadingAnimation";
 
@@ -56,7 +56,7 @@ const LiveExercise = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { level, focus } = location.state || { level: "Débutant", focus: "formes de base" };
-  
+
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [currentStep, setCurrentStep] = useState(0);
@@ -72,19 +72,8 @@ const LiveExercise = () => {
   const generateExercise = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await invokeEdgeFunction("generate-exercise", {
-        body: { level, focus },
-      });
-
-      if (error) {
-        if (error.message?.includes("402") || error.message?.includes("Crédits insuffisants")) {
-          toast.error("Crédits Lovable AI insuffisants. Allez dans Settings → Workspace → Usage pour ajouter des crédits.");
-          throw new Error("Crédits insuffisants");
-        }
-        throw error;
-      }
-
-      setExercise((data as any).exercise);
+      const exerciseData = await LocalLLMService.generateExercise(level, focus);
+      setExercise(exerciseData);
       toast.success("Exercice généré ! 🎨");
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -100,11 +89,11 @@ const LiveExercise = () => {
 
   const completeStep = () => {
     if (!exercise || !exercise.steps || currentStep >= exercise.steps.length - 1) return;
-    
+
     setCompletedSteps([...completedSteps, currentStep]);
     setCurrentStep(currentStep + 1);
     toast.success("Étape validée ! 👏");
-    
+
     // Feedback automatique
     if (currentStep === Math.floor(exercise.steps.length / 2)) {
       getFeedback();
@@ -116,17 +105,13 @@ const LiveExercise = () => {
 
     setIsAnalyzing(true);
     try {
-      const { data, error } = await invokeEdgeFunction("analyze-drawing", {
-        body: {
-          exerciseTitle: exercise.title,
-          userProgress: `Étape ${currentStep + 1}/${exercise.steps.length}`,
-          specificQuestion: specificQuestion || question,
-        },
+      const result = await LocalLLMService.analyzeDrawing({
+        exerciseTitle: exercise.title,
+        userProgress: `Étape ${currentStep + 1}/${exercise.steps.length}`,
+        specificQuestion: specificQuestion || question,
       });
 
-      if (error) throw error;
-
-      setFeedback((data as any).feedback);
+      setFeedback(result.feedback);
       setQuestion("");
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -328,13 +313,12 @@ const LiveExercise = () => {
                 {exercise.steps?.map((step, i) => (
                   <div
                     key={i}
-                    className={`rounded-[20px] px-4 py-3 text-xs font-semibold uppercase tracking-widest transition ${
-                      completedSteps.includes(i)
+                    className={`rounded-[20px] px-4 py-3 text-xs font-semibold uppercase tracking-widest transition ${completedSteps.includes(i)
                         ? "bg-accent/30 text-accent-foreground line-through"
                         : i === currentStep
-                        ? "bg-primary/20 text-primary-foreground"
-                        : "bg-white/70 text-muted-foreground"
-                    }`}
+                          ? "bg-primary/20 text-primary-foreground"
+                          : "bg-white/70 text-muted-foreground"
+                      }`}
                   >
                     {i + 1}. {step.substring(0, 50)}...
                   </div>

@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { X, Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { invokeEdgeFunction } from "@/integrations/supabase/client";
+import { LocalLLMService } from "@/lib/ai/local-llm";
 
 interface AIAssistantProps {
   onClose: () => void;
@@ -34,21 +34,24 @@ export const AIAssistant = ({ onClose }: AIAssistantProps) => {
     setIsLoading(true);
 
     try {
-      const { data, error } = await invokeEdgeFunction("drawing-coach", {
-        body: { messages: [...messages, userMessage] },
-      });
+      // Convert UI messages to API messages
+      const apiMessages = [
+        { role: "system" as const, content: "Tu es un coach de dessin expert et bienveillant." },
+        ...messages.map(m => ({ role: m.role, content: m.content })),
+        { role: "user" as const, content: input }
+      ];
 
-      if (error) throw error;
+      const content = await LocalLLMService.chatCompletion(apiMessages);
 
       const assistantMessage: Message = {
         role: "assistant",
-        content: (data as any).choices[0].message.content,
+        content: content || "Désolé, je n'ai pas pu générer de réponse.",
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error("Error:", error);
-      toast.error("Erreur lors de l'envoi du message");
+      toast.error("Erreur lors de l'envoi du message au coach local");
     } finally {
       setIsLoading(false);
     }
@@ -82,11 +85,10 @@ export const AIAssistant = ({ onClose }: AIAssistantProps) => {
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-[24px] px-5 py-4 text-sm leading-relaxed shadow-[0_10px_30px_rgba(15,23,42,0.08)] ${
-                    message.role === "user"
-                      ? "bg-gradient-to-r from-primary to-secondary text-white"
-                      : "border border-white/60 bg-white/80 text-foreground backdrop-blur"
-                  }`}
+                  className={`max-w-[80%] rounded-[24px] px-5 py-4 text-sm leading-relaxed shadow-[0_10px_30px_rgba(15,23,42,0.08)] ${message.role === "user"
+                    ? "bg-gradient-to-r from-primary to-secondary text-white"
+                    : "border border-white/60 bg-white/80 text-foreground backdrop-blur"
+                    }`}
                 >
                   {message.content}
                 </div>
