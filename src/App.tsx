@@ -8,6 +8,7 @@ import Exercises from "./pages/Exercises";
 import Project from "./pages/Project";
 import LiveExercise from "./pages/LiveExercise";
 import DrawMasterVR from "./pages/DrawMasterVR";
+import AICoachDemo from "./pages/AICoachDemo";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => {
                 <Route path="/project" element={<Project />} />
                 <Route path="/live-exercise" element={<LiveExercise />} />
                 <Route path="/drawmaster" element={<DrawMasterVR />} />
+                <Route path="/ai-coach" element={<AICoachDemo />} />
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
