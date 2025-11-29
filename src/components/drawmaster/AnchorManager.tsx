@@ -51,10 +51,13 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
   }, []);
 
   const loadAnchors = async () => {
-    const { data, error } = await supabase
-      .from("anchors")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // Mock data for now since supabase client is limited
+    // const { data, error } = await supabase
+    //   .from("anchors")
+    //   .select("*")
+    //   .order("created_at", { ascending: false });
+    const data: Anchor[] = [];
+    const error = null;
 
     if (error) {
       console.error("Erreur chargement ancres:", error);
@@ -135,29 +138,26 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
       const response = await fetch(capturedImage);
       const blob = await response.blob();
 
-      // Upload to storage
+      // Upload to storage - disabled for now
       const fileName = `${Date.now()}-${name.replace(/\s+/g, "-")}.jpg`;
-      const { error: uploadError, data: uploadData } = await supabase.storage
-        .from("anchors")
-        .upload(fileName, blob);
+      // const { error: uploadError, data: uploadData } = await supabase.storage
+      //   .from("anchors")
+      //   .upload(fileName, blob);
+      // if (uploadError) throw uploadError;
 
-      if (uploadError) throw uploadError;
+      // Get public URL - use captured image directly
+      const imageUrl = capturedImage;
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from("anchors")
-        .getPublicUrl(fileName);
-
-      // Save to database
-      const { error: dbError, data: anchorData } = await supabase
-        .from("anchors")
-        .insert({
-          name: name.trim(),
-          description: description.trim() || null,
-          image_url: urlData.publicUrl,
-        })
-        .select()
-        .single();
+      // Save to database - create mock anchor
+      const anchorData: Anchor = {
+        id: `anchor-${Date.now()}`,
+        name: name.trim(),
+        description: description.trim() || null,
+        image_url: imageUrl,
+        pattern_url: null,
+        created_at: new Date().toISOString(),
+      };
+      const dbError = null;
 
       if (dbError) throw dbError;
 
@@ -175,14 +175,14 @@ const AnchorManager = ({ onSelectAnchor, selectedAnchorId }: AnchorManagerProps)
 
   const deleteAnchor = async (id: string, imageUrl: string) => {
     try {
-      // Delete from storage
-      const fileName = imageUrl.split("/").pop();
-      if (fileName) {
-        await supabase.storage.from("anchors").remove([fileName]);
-      }
+      // Delete from storage - disabled
+      // const fileName = imageUrl.split("/").pop();
+      // if (fileName) {
+      //   await supabase.storage.from("anchors").remove([fileName]);
+      // }
 
-      // Delete from database
-      const { error } = await supabase.from("anchors").delete().eq("id", id);
+      // Delete from database - mock
+      const error = null;
 
       if (error) throw error;
 

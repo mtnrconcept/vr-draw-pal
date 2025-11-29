@@ -11,8 +11,9 @@ import ClassicMode from "@/components/drawmaster/ClassicMode";
 import ARMode from "@/components/drawmaster/ARMode";
 import VRMode from "@/components/drawmaster/VRMode";
 import GhostMentor from "@/components/drawmaster/GhostMentor";
+import AICoachMaster from "@/components/drawmaster/AICoachMaster";
 import DrawingTools from "@/components/drawmaster/DrawingTools";
-import { Camera, Anchor, Grid, Ghost, Menu, X, ArrowLeft } from "lucide-react";
+import { Camera, Anchor, Grid, Ghost, Menu, X, ArrowLeft, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { LocalLLMService } from "@/lib/ai/local-llm";
 
@@ -28,6 +29,7 @@ const DrawMasterVR = () => {
     "classic",
   );
   const [ghostMentorEnabled, setGhostMentorEnabled] = useState(false);
+  const [aiCoachEnabled, setAiCoachEnabled] = useState(false);
   const [referenceImage, setReferenceImage] = useState<string | null>(null);
   const [gridEnabled, setGridEnabled] = useState(false);
   const [gridOpacity, setGridOpacity] = useState(50);
@@ -234,6 +236,20 @@ const DrawMasterVR = () => {
                 {ghostMentorEnabled ? "Activé" : "Inactif"}
               </Button>
             </div>
+            <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-widest">
+              <span>Coach IA Avancé</span>
+              <Button
+                size="sm"
+                onClick={() => setAiCoachEnabled(!aiCoachEnabled)}
+                className={`h-9 rounded-full px-4 text-xs font-semibold uppercase tracking-widest ${aiCoachEnabled
+                  ? "bg-primary text-white"
+                  : "border border-white/60 bg-white/70 text-foreground"
+                  }`}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {aiCoachEnabled ? "Activé" : "Inactif"}
+              </Button>
+            </div>
             <div className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Outils de projection
             </div>
@@ -312,16 +328,6 @@ const DrawMasterVR = () => {
                     strobeMaxOpacity={strobeMaxOpacity}
                     contrast={contrast}
                     brightness={brightness}
-                    assistanceLevel={assistanceLevel}
-                    showGhostLines={showGhostLines}
-                    showHeatmap={showHeatmap}
-                    showTrajectories={showTrajectories}
-                    sensitivity={sensitivity}
-                    onAnalysisUpdate={handleAnalysisUpdate}
-                    grayscaleMode={grayscaleMode}
-                    showPencilGuides={showPencilGuides}
-                    activePencilFilter={activePencilFilter}
-                    isolateZone={isolateZone}
                   />
                 </TabsContent>
                 <TabsContent value="vr" className="mt-0 h-full space-y-4">
@@ -474,6 +480,13 @@ const DrawMasterVR = () => {
                 corrections={corrections}
                 accuracy={accuracy}
                 feedback={feedback}
+              />
+            )}
+
+            {aiCoachEnabled && (
+              <AICoachMaster
+                mode={activeMode}
+                referenceImage={referenceImage}
               />
             )}
           </Card>

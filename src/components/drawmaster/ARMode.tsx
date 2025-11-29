@@ -849,8 +849,8 @@ export default function ARAnchorsMode({
                   : null;
               })
               .filter(
-                (value): value is { id: string; label?: string; x: number; y: number } =>
-                  Boolean(value)
+                (value): value is { id: string; label: string; x: number; y: number } =>
+                  Boolean(value) && Boolean(value.label)
               );
 
             setProjectedOverlayAnchors((previous) => {

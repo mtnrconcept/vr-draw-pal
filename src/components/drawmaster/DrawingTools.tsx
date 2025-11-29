@@ -113,10 +113,18 @@ const DrawingTools = ({
     // When starting a time‑lapse we capture the current video stream and record a video.
     if (!timelapseRecording) {
       const videoElement = document.querySelector<HTMLVideoElement>('[data-drawmaster-video]');
-      if (!videoElement || typeof videoElement.captureStream !== "function") {
+      if (!videoElement) {
         toast.error("Aucune vidéo active à enregistrer");
         return;
       }
+      
+      // Check if captureStream is available
+      const hasCaptureStream = 'captureStream' in videoElement || 'mozCaptureStream' in videoElement;
+      if (!hasCaptureStream) {
+        toast.error("Enregistrement non supporté sur cet appareil");
+        return;
+      }
+      
       try {
         const supportedMimeTypes = [
           "video/mp4;codecs=h264",
@@ -127,9 +135,10 @@ const DrawingTools = ({
         const selectedMimeType =
           supportedMimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) ?? "video/webm";
         const fileExtension = selectedMimeType.includes("mp4") ? "mp4" : "webm";
-        // Capture the active video stream instead of the canvas so the export matches the video module.
-        const stream = videoElement.captureStream
-          ? videoElement.captureStream(24)
+        
+        // Capture the active video stream
+        const stream = (videoElement as any).captureStream
+          ? (videoElement as any).captureStream(24)
           : (videoElement as any).mozCaptureStream?.(24);
         if (!stream) {
           toast.error("Impossible de capturer la vidéo");
