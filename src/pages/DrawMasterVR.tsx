@@ -260,8 +260,8 @@ const DrawMasterVR = () => {
         </Card>
 
         <div className="space-y-8">
-          {/* Module vidéo avec outils AI en overlay */}
-          <Card className="mobile-card relative rounded-[36px] border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-6 lg:h-auto h-[calc(110vh-1rem)] flex flex-col">
+          {/* Module vidéo en premier (pleine largeur) */}
+          <Card className="mobile-card rounded-[36px] border border-white/70 bg-white/85 p-4 shadow-[var(--shadow-soft)] backdrop-blur-xl sm:p-6 lg:h-auto h-[calc(110gitvh-1rem)] flex flex-col">
             <Tabs
               value={activeMode}
               onValueChange={(value) =>
@@ -289,16 +289,6 @@ const DrawMasterVR = () => {
                   Mode VR
                 </TabsTrigger>
               </TabsList>
-
-              {/* Outils AI en overlay sur le flux vidéo */}
-              {aiCoachEnabled && (
-                <div className="absolute bottom-4 right-4 z-50 max-w-sm max-h-[70vh] overflow-y-auto">
-                  <AICoachMaster
-                    mode={activeMode}
-                    referenceImage={referenceImage}
-                  />
-                </div>
-              )}
 
               <div className="flex-1 space-y-6">
                 <TabsContent value="classic" className="mt-0 h-full space-y-4">
@@ -493,6 +483,12 @@ const DrawMasterVR = () => {
               />
             )}
 
+            {aiCoachEnabled && (
+              <AICoachMaster
+                mode={activeMode}
+                referenceImage={referenceImage}
+              />
+            )}
           </Card>
         </div>
       </div>

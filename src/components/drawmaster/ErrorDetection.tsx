@@ -4,53 +4,62 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RotateCcw, Lightbulb, Layers } from "lucide-react";
-import { useState, useEffect } from "react";
-import { CoachService, DetectedError } from "@/lib/ai/coach-service";
-import { toast } from "sonner";
+import { useState } from "react";
 
 interface ErrorDetectionProps {
     enabled: boolean;
     onEnabledChange: (enabled: boolean) => void;
-    mode: "classic" | "ar" | "vr";
+}
+
+interface DetectedError {
+    id: string;
+    type: "proportion" | "perspective" | "anatomy" | "symmetry";
+    severity: "low" | "medium" | "high";
+    description: string;
+    correction: string;
+    position: { x: number; y: number };
 }
 
 /**
  * Détection d'erreur en temps réel avec correction holographique
- * Via AI et vision par ordinateur:
+ * Via vision par ordinateur:
  * - Détecte les proportions erronées
  * - Fait "pivoter" des volumes fantômes autour du trait
  * - Propose une version corrigée sous forme de sculpture transparente
  */
-const ErrorDetection = ({ enabled, onEnabledChange, mode }: ErrorDetectionProps) => {
+const ErrorDetection = ({ enabled, onEnabledChange }: ErrorDetectionProps) => {
     const [detectionSensitivity, setDetectionSensitivity] = useState(70);
     const [showHolographicCorrection, setShowHolographicCorrection] = useState(true);
     const [autoCorrect, setAutoCorrect] = useState(false);
     const [volumeRotation, setVolumeRotation] = useState(true);
-    const [errors, setErrors] = useState<DetectedError[]>([]);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-    // Analyse périodique des erreurs avec l'IA
-    useEffect(() => {
-        if (!enabled) return;
-
-        const analyzeErrors = async () => {
-            setIsAnalyzing(true);
-            try {
-                const detectedErrors = await CoachService.detectErrors(mode);
-                setErrors(detectedErrors);
-            } catch (error) {
-                console.error("Error detection failed:", error);
-                toast.error("Échec de l'analyse des erreurs");
-            } finally {
-                setIsAnalyzing(false);
-            }
-        };
-
-        analyzeErrors();
-        const interval = setInterval(analyzeErrors, 15000); // Analyse toutes les 15 secondes
-
-        return () => clearInterval(interval);
-    }, [enabled, mode, detectionSensitivity]);
+    // Mock detected errors
+    const [errors] = useState<DetectedError[]>([
+        {
+            id: "1",
+            type: "proportion",
+            severity: "high",
+            description: "Tête trop grande par rapport au corps",
+            correction: "Réduire la hauteur de la tête de 15%",
+            position: { x: 120, y: 80 }
+        },
+        {
+            id: "2",
+            type: "perspective",
+            severity: "medium",
+            description: "Ligne de fuite incorrecte",
+            correction: "Ajuster l'angle de 8° vers la gauche",
+            position: { x: 200, y: 150 }
+        },
+        {
+            id: "3",
+            type: "symmetry",
+            severity: "low",
+            description: "Épaules asymétriques",
+            correction: "Relever l'épaule droite de 5px",
+            position: { x: 180, y: 120 }
+        }
+    ]);
 
     const getSeverityColor = (severity: string) => {
         switch (severity) {
@@ -136,12 +145,9 @@ const ErrorDetection = ({ enabled, onEnabledChange, mode }: ErrorDetectionProps)
                     <div className="rounded-lg bg-red-950/40 p-3 border border-red-500/30">
                         <h4 className="text-sm font-semibold text-red-100 mb-3 flex items-center gap-2">
                             <AlertTriangle className="h-4 w-4" />
-                            {isAnalyzing ? "Analyse en cours..." : `Erreurs détectées (${errors.length})`}
+                            Erreurs détectées ({errors.length})
                         </h4>
                         <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {errors.length === 0 && !isAnalyzing && (
-                                <p className="text-xs text-red-300">Aucune erreur détectée pour le moment</p>
-                            )}
                             {errors.map((error) => (
                                 <div
                                     key={error.id}

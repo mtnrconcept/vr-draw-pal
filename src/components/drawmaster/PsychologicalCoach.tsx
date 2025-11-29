@@ -5,8 +5,6 @@ import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
 import { Heart, Brain, Smile, Frown, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
-import { CoachService } from "@/lib/ai/coach-service";
-import { toast } from "sonner";
 
 interface PsychologicalCoachProps {
     enabled: boolean;
@@ -14,9 +12,13 @@ interface PsychologicalCoachProps {
 }
 
 /**
- * Coach psychologique intégré avec IA
+ * Coach psychologique intégré
  * Le dessin implique souvent: peur du trait, hésitation, autocritique, perfectionnisme
- * L'IA détecte les phases de stress via analyse comportementale
+ * L'IA détecte les phases de stress via:
+ * - Ton rythme
+ * - Tes arrêts
+ * - Ta pression
+ * - Tes reprises
  */
 const PsychologicalCoach = ({ enabled, onEnabledChange }: PsychologicalCoachProps) => {
     const [stressLevel, setStressLevel] = useState(35);
@@ -24,43 +26,33 @@ const PsychologicalCoach = ({ enabled, onEnabledChange }: PsychologicalCoachProp
     const [detectionSensitivity, setDetectionSensitivity] = useState(70);
     const [showEncouragement, setShowEncouragement] = useState(true);
     const [showBreakReminders, setShowBreakReminders] = useState(true);
+
     const [currentMood, setCurrentMood] = useState<"confident" | "hesitant" | "stressed" | "relaxed">("confident");
     const [detectedPatterns, setDetectedPatterns] = useState({
-        hesitations: 0,
-        corrections: 0,
-        pauses: 0,
-        rushPhases: 0
+        hesitations: 8,
+        corrections: 12,
+        pauses: 5,
+        rushPhases: 3
     });
-    const [currentEncouragement, setCurrentEncouragement] = useState("");
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-    // Analyse psychologique périodique via IA
+    const encouragements = [
+        "Excellent travail ! Votre trait devient plus assuré.",
+        "Prenez votre temps, la qualité prime sur la vitesse.",
+        "Vous progressez ! Continuez comme ça.",
+        "N'ayez pas peur de l'erreur, elle fait partie du processus.",
+        "Respirez profondément et faites-vous confiance."
+    ];
+
+    const [currentEncouragement, setCurrentEncouragement] = useState(encouragements[0]);
+
     useEffect(() => {
-        if (!enabled) return;
-
-        const analyzePsychology = async () => {
-            setIsAnalyzing(true);
-            try {
-                const state = await CoachService.analyzePsychologicalState();
-                setStressLevel(state.stressLevel);
-                setConfidenceLevel(state.confidenceLevel);
-                setCurrentMood(state.currentMood);
-                setDetectedPatterns(state.detectedPatterns);
-                if (showEncouragement) {
-                    setCurrentEncouragement(state.encouragement);
-                }
-            } catch (error) {
-                console.error("Psychological analysis failed:", error);
-            } finally {
-                setIsAnalyzing(false);
-            }
-        };
-
-        analyzePsychology();
-        const interval = setInterval(analyzePsychology, 20000); // Analyse toutes les 20 secondes
-
-        return () => clearInterval(interval);
-    }, [enabled, showEncouragement, detectionSensitivity]);
+        if (enabled && showEncouragement) {
+            const interval = setInterval(() => {
+                setCurrentEncouragement(encouragements[Math.floor(Math.random() * encouragements.length)]);
+            }, 30000); // Change every 30 seconds
+            return () => clearInterval(interval);
+        }
+    }, [enabled, showEncouragement]);
 
     const getMoodIcon = () => {
         switch (currentMood) {

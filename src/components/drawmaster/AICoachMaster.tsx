@@ -120,7 +120,6 @@ const AICoachMaster = ({ mode, referenceImage }: AICoachMasterProps) => {
                         <ErrorDetection
                             enabled={errorDetectionEnabled}
                             onEnabledChange={setErrorDetectionEnabled}
-                            mode={mode}
                         />
 
                         <StyleCalibration
