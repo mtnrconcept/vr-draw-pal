@@ -3,30 +3,17 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Fingerprint, TrendingUp, Target, Zap } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { CoachService, StyleProfile } from "@/lib/ai/coach-service";
+import { toast } from "sonner";
 
 interface StyleCalibrationProps {
     enabled: boolean;
     onCalibrationComplete?: (styleProfile: StyleProfile) => void;
 }
 
-export interface StyleProfile {
-    gestureSpeed: number; // 0-100
-    pressure: number; // 0-100
-    lineQuality: "sketchy" | "smooth" | "angular";
-    dominantStrokes: "short" | "medium" | "long";
-    strengths: string[];
-    weaknesses: string[];
-    signature3D: {
-        speed: number;
-        precision: number;
-        consistency: number;
-        creativity: number;
-    };
-}
-
 /**
- * Calibration automatique du style personnel
+ * Calibration automatique du style personnel via IA
  * Analyse le geste, la vitesse, la pression, le style
  * Affiche une "signature visuelle" 3D du style
  * Propose des exercices calibrés pour combler les lacunes
@@ -36,48 +23,31 @@ const StyleCalibration = ({ enabled, onCalibrationComplete }: StyleCalibrationPr
     const [calibrationProgress, setCalibrationProgress] = useState(0);
     const [styleProfile, setStyleProfile] = useState<StyleProfile | null>(null);
 
-    const startCalibration = () => {
+    const startCalibration = async () => {
         setIsCalibrating(true);
         setCalibrationProgress(0);
 
-        // Simulate calibration process
-        const interval = setInterval(() => {
-            setCalibrationProgress(prev => {
-                if (prev >= 100) {
-                    clearInterval(interval);
-                    setIsCalibrating(false);
+        // Animation de progression
+        const progressInterval = setInterval(() => {
+            setCalibrationProgress(prev => Math.min(prev + 5, 95));
+        }, 200);
 
-                    // Generate mock style profile
-                    const profile: StyleProfile = {
-                        gestureSpeed: Math.floor(Math.random() * 40) + 60,
-                        pressure: Math.floor(Math.random() * 30) + 50,
-                        lineQuality: ["sketchy", "smooth", "angular"][Math.floor(Math.random() * 3)] as any,
-                        dominantStrokes: ["short", "medium", "long"][Math.floor(Math.random() * 3)] as any,
-                        strengths: [
-                            "Traits fluides et dynamiques",
-                            "Bonne gestion des courbes",
-                            "Sens du volume naturel"
-                        ],
-                        weaknesses: [
-                            "Proportions à améliorer",
-                            "Symétrie perfectible",
-                            "Perspective à renforcer"
-                        ],
-                        signature3D: {
-                            speed: Math.floor(Math.random() * 30) + 70,
-                            precision: Math.floor(Math.random() * 40) + 40,
-                            consistency: Math.floor(Math.random() * 30) + 60,
-                            creativity: Math.floor(Math.random() * 40) + 50
-                        }
-                    };
-
-                    setStyleProfile(profile);
-                    onCalibrationComplete?.(profile);
-                    return 100;
-                }
-                return prev + 2;
-            });
-        }, 100);
+        try {
+            // Analyse réelle via IA
+            const profile = await CoachService.analyzeStyle();
+            
+            clearInterval(progressInterval);
+            setCalibrationProgress(100);
+            setStyleProfile(profile);
+            onCalibrationComplete?.(profile);
+            toast.success("Calibration de style terminée !");
+        } catch (error) {
+            clearInterval(progressInterval);
+            console.error("Style calibration failed:", error);
+            toast.error("Échec de la calibration");
+        } finally {
+            setIsCalibrating(false);
+        }
     };
 
     if (!enabled) return null;
