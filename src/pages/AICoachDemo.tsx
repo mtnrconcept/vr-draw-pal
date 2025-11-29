@@ -1,18 +1,28 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Layout } from "@/components/Layout";
 import AICoachMaster from "@/components/drawmaster/AICoachMaster";
+import DrawingCanvas from "@/components/drawmaster/DrawingCanvas";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Eye, Palette } from "lucide-react";
+import { Sparkles, Eye, Palette, Video } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
  * Page de démonstration du Coach IA DrawMaster
  * Présente toutes les fonctionnalités futuristes du coach IA VR
+ * AVEC canvas de dessin interactif et visualisations en temps réel
  */
 const AICoachDemo = () => {
     const [mode, setMode] = useState<"classic" | "ar" | "vr">("vr");
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
+    const [canvasElement, setCanvasElement] = useState<HTMLCanvasElement | null>(null);
+    const [detectedErrors, setDetectedErrors] = useState<any[]>([]);
+    const [guides, setGuides] = useState<any[]>([]);
+
+    const handleDrawingChange = (canvas: HTMLCanvasElement) => {
+        setCanvasElement(canvas);
+    };
 
     return (
         <Layout>
@@ -125,9 +135,63 @@ const AICoachDemo = () => {
                     </div>
                 </div>
 
-                {/* Main AI Coach Interface */}
+                {/* Main Interface with Tabs */}
                 <div className="max-w-7xl mx-auto">
-                    <AICoachMaster mode={mode} referenceImage={referenceImage} />
+                    <Tabs defaultValue="canvas" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 mb-4">
+                            <TabsTrigger value="canvas" className="flex items-center gap-2">
+                                <Palette className="h-4 w-4" />
+                                Canvas de Dessin
+                            </TabsTrigger>
+                            <TabsTrigger value="coach" className="flex items-center gap-2">
+                                <Sparkles className="h-4 w-4" />
+                                Coach IA
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="canvas">
+                            <DrawingCanvas
+                                width={800}
+                                height={600}
+                                onDrawingChange={handleDrawingChange}
+                                showGuides={guides.length > 0}
+                                guides={guides}
+                                showErrors={detectedErrors.length > 0}
+                                errors={detectedErrors}
+                            />
+
+                            <Card className="mt-4 p-4 bg-slate-900/50 border-slate-700">
+                                <h3 className="text-sm font-semibold text-slate-200 mb-2 flex items-center gap-2">
+                                    <Video className="h-4 w-4" />
+                                    Statut en temps réel
+                                </h3>
+                                <div className="grid grid-cols-3 gap-4 text-xs">
+                                    <div>
+                                        <p className="text-slate-400">Canvas actif</p>
+                                        <p className="text-green-400 font-medium">{canvasElement ? "✓ Oui" : "✗ Non"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-slate-400">Erreurs détectées</p>
+                                        <p className="text-orange-400 font-medium">{detectedErrors.length}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-slate-400">Guides actifs</p>
+                                        <p className="text-cyan-400 font-medium">{guides.length}</p>
+                                    </div>
+                                </div>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="coach">
+                            <AICoachMaster
+                                mode={mode}
+                                referenceImage={referenceImage}
+                                canvasElement={canvasElement}
+                                onErrorsDetected={setDetectedErrors}
+                                onGuidesGenerated={setGuides}
+                            />
+                        </TabsContent>
+                    </Tabs>
                 </div>
 
                 {/* Footer Info */}
@@ -152,6 +216,9 @@ const AICoachDemo = () => {
                             <div>✅ Cartographie du progrès 3D</div>
                             <div>✅ Réalité Mixte AR/VR</div>
                             <div>✅ Coach psychologique IA</div>
+                            <div className="text-green-400 font-semibold">✅ Canvas interactif LIVE</div>
+                            <div className="text-green-400 font-semibold">✅ Analyse IA en temps réel</div>
+                            <div className="text-green-400 font-semibold">✅ API locale connectée</div>
                         </div>
                     </Card>
                 </div>

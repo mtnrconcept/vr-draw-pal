@@ -22,13 +22,16 @@ import { Sparkles, Brain, Palette, Zap } from "lucide-react";
 interface AICoachMasterProps {
     mode: "classic" | "ar" | "vr";
     referenceImage: string | null;
+    canvasElement?: HTMLCanvasElement | null;
+    onErrorsDetected?: (errors: any[]) => void;
+    onGuidesGenerated?: (guides: any[]) => void;
 }
 
 /**
  * AI Coach Master - Hub central pour toutes les fonctionnalités du coach IA
  * Regroupe tous les modules avancés dans une interface organisée par catégories
  */
-const AICoachMaster = ({ mode, referenceImage }: AICoachMasterProps) => {
+const AICoachMaster = ({ mode, referenceImage, canvasElement, onErrorsDetected, onGuidesGenerated }: AICoachMasterProps) => {
     // Ghost Mentor states
     const [assistanceLevel, setAssistanceLevel] = useState<"soft" | "medium" | "hard">("medium");
     const [showGhostLines, setShowGhostLines] = useState(true);
@@ -120,6 +123,8 @@ const AICoachMaster = ({ mode, referenceImage }: AICoachMasterProps) => {
                         <ErrorDetection
                             enabled={errorDetectionEnabled}
                             onEnabledChange={setErrorDetectionEnabled}
+                            canvasElement={canvasElement}
+                            onErrorsDetected={onErrorsDetected}
                         />
 
                         <StyleCalibration

@@ -7,6 +7,10 @@ import { RotateCw } from "lucide-react";
 import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
 import { toast } from "sonner";
 import { processImageForPencils } from "@/lib/art/pencil-guide";
+import AIOverlay from "./AIOverlay";
+import AIToolbar from "./AIToolbar";
+import AIActionButtons from "./AIActionButtons";
+import FloatingToolsPanel from "./FloatingToolsPanel";
 
 interface ClassicModeProps {
   referenceImage: string | null;
@@ -69,6 +73,54 @@ const ClassicMode = ({
 
   // Pencil Guide State
   const [processedOverlay, setProcessedOverlay] = useState<string | null>(null);
+
+  // AI Overlay States
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [activeActions, setActiveActions] = useState<string[]>(["style-active"]);
+  const [showAIGuides, setShowAIGuides] = useState(false);
+  const [showAIGrid, setShowAIGrid] = useState(false);
+  const [showAnatomy, setShowAnatomy] = useState(false);
+  const [showLighting, setShowLighting] = useState(false);
+  const [showToolsPanel, setShowToolsPanel] = useState(false);
+
+  const handleToolSelect = (tool: string) => {
+    setActiveTool(tool === activeTool ? null : tool);
+
+    // Toggle overlays based on tool
+    switch (tool) {
+      case "guides":
+        setShowAIGuides(!showAIGuides);
+        break;
+      case "anatomy":
+        setShowAnatomy(!showAnatomy);
+        break;
+      case "lighting":
+        setShowLighting(!showLighting);
+        break;
+      case "layers":
+        setShowToolsPanel(!showToolsPanel);
+        break;
+    }
+  };
+
+  const handleAction = (action: string) => {
+    if (activeActions.includes(action)) {
+      setActiveActions(activeActions.filter(a => a !== action));
+    } else {
+      setActiveActions([...activeActions, action]);
+    }
+
+    // Handle specific actions
+    switch (action) {
+      case "zone-isolation":
+        // Toggle zone isolation
+        break;
+      case "ai-help":
+        // Request AI help
+        toast.info("Assistant IA activé");
+        break;
+    }
+  };
 
   const updateCameraAspectRatio = useCallback(() => {
     const video = videoRef.current;
@@ -284,6 +336,36 @@ const ClassicMode = ({
             Ghost Mentor actif
           </div>
         )}
+
+        {/* AI Overlay - Guides, grilles, commentaires */}
+        <AIOverlay
+          enabled={ghostMentorEnabled}
+          mode="classic"
+          showGuides={showAIGuides}
+          showGrid={showAIGrid || gridEnabled}
+          showAnatomy={showAnatomy}
+          showLighting={showLighting}
+          showComments={ghostMentorEnabled}
+        />
+
+        {/* AI Toolbar - Barre d'outils latérale */}
+        <AIToolbar
+          onToolSelect={handleToolSelect}
+          activeTool={activeTool}
+          position="left"
+        />
+
+        {/* AI Action Buttons - Boutons d'action en bas */}
+        <AIActionButtons
+          onAction={handleAction}
+          activeActions={activeActions}
+        />
+
+        {/* Floating Tools Panel - Panneau d'outils flottant */}
+        <FloatingToolsPanel
+          visible={showToolsPanel}
+          position={{ bottom: "20%", right: "5%" }}
+        />
       </div>
 
       <Card className="mobile-card space-y-5 rounded-[28px] border border-white/60 bg-white/75 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
