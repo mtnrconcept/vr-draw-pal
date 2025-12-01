@@ -11,6 +11,7 @@ import {
   Flashlight,
   Video,
   Upload,
+  Compass,
 } from "lucide-react";
 import { toast } from "sonner";
 import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
@@ -36,6 +37,17 @@ interface DrawingToolsProps {
   onContrastChange: (value: number) => void;
   brightness: number;
   onBrightnessChange: (value: number) => void;
+  // Perspective props
+  perspectiveEnabled: boolean;
+  onPerspectiveEnabledChange: (enabled: boolean) => void;
+  horizonPosition: number;
+  onHorizonPositionChange: (position: number) => void;
+  vanishingPointCount: number;
+  onVanishingPointCountChange: (count: number) => void;
+  perspectiveLineCount: number;
+  onPerspectiveLineCountChange: (count: number) => void;
+  perspectiveOpacity: number;
+  onPerspectiveOpacityChange: (opacity: number) => void;
 }
 
 const DrawingTools = ({
@@ -59,6 +71,16 @@ const DrawingTools = ({
   onContrastChange,
   brightness,
   onBrightnessChange,
+  perspectiveEnabled,
+  onPerspectiveEnabledChange,
+  horizonPosition,
+  onHorizonPositionChange,
+  vanishingPointCount,
+  onVanishingPointCountChange,
+  perspectiveLineCount,
+  onPerspectiveLineCountChange,
+  perspectiveOpacity,
+  onPerspectiveOpacityChange,
 }: DrawingToolsProps) => {
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [timelapseRecording, setTimelapseRecording] = useState(false);
@@ -345,6 +367,76 @@ const DrawingTools = ({
             />
           </div>
         </div>
+      </Card>
+
+      {/* Perspective Grid */}
+      <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/70 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+            <Compass className="h-4 w-4 text-accent" />
+            Perspective
+          </div>
+          <Switch
+            checked={perspectiveEnabled}
+            onCheckedChange={onPerspectiveEnabledChange}
+          />
+        </div>
+        {perspectiveEnabled && (
+          <div className="space-y-4 rounded-[22px] border border-white/50 bg-white/60 p-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground shadow-inner shadow-white/50">
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Position de l'horizon</span>
+                <span className="text-accent">{horizonPosition}%</span>
+              </div>
+              <Slider
+                value={[horizonPosition]}
+                onValueChange={(value) => onHorizonPositionChange(value[0])}
+                min={0}
+                max={100}
+                step={1}
+              />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Points de fuite</span>
+                <span className="text-accent">{vanishingPointCount}</span>
+              </div>
+              <Slider
+                value={[vanishingPointCount]}
+                onValueChange={(value) => onVanishingPointCountChange(Math.round(value[0]))}
+                min={1}
+                max={5}
+                step={1}
+              />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Lignes par grille</span>
+                <span className="text-accent">{perspectiveLineCount}</span>
+              </div>
+              <Slider
+                value={[perspectiveLineCount]}
+                onValueChange={(value) => onPerspectiveLineCountChange(Math.round(value[0]))}
+                min={5}
+                max={50}
+                step={1}
+              />
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span>Opacité</span>
+                <span className="text-accent">{perspectiveOpacity}%</span>
+              </div>
+              <Slider
+                value={[perspectiveOpacity]}
+                onValueChange={(value) => onPerspectiveOpacityChange(value[0])}
+                min={0}
+                max={100}
+                step={1}
+              />
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Outils divers */}

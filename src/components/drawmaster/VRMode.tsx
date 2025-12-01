@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { processImageForPencils } from "@/lib/art/pencil-guide";
+import PerspectiveGrid, { VanishingPoint } from "./PerspectiveGrid";
 
 interface VRModeProps {
   referenceImage: string | null;
@@ -26,6 +27,13 @@ interface VRModeProps {
   showPencilGuides?: boolean;
   activePencilFilter?: string | null;
   isolateZone?: boolean;
+  // Perspective props
+  perspectiveEnabled: boolean;
+  horizonPosition: number;
+  vanishingPoints: VanishingPoint[];
+  onVanishingPointsChange: (points: VanishingPoint[]) => void;
+  perspectiveLineCount: number;
+  perspectiveOpacity: number;
 }
 
 // Minimal type definition for WebXR to avoid build errors if types are missing
@@ -61,6 +69,12 @@ const VRMode = ({
   showPencilGuides,
   activePencilFilter,
   isolateZone,
+  perspectiveEnabled,
+  horizonPosition,
+  vanishingPoints,
+  onVanishingPointsChange,
+  perspectiveLineCount,
+  perspectiveOpacity,
 }: VRModeProps) => {
   const [isSupported, setIsSupported] = useState<boolean | null>(null);
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -159,16 +173,20 @@ const VRMode = ({
   const displayImage = (showPencilGuides && processedImage) ? processedImage : referenceImage;
   const isIsolated = showPencilGuides && isolateZone && activePencilFilter;
 
+  // Container dimensions for perspective (using 16:9 aspect ratio)
+  const containerWidth = 1600;
+  const containerHeight = 900;
+
   return (
     <div className="space-y-4">
       <Card className="mobile-card space-y-4 rounded-[28px] border border-white/60 bg-white/85 p-4 shadow-[var(--shadow-card)] backdrop-blur-xl sm:p-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              Mode VR Vision Pro
+              Mode VR Vision Pro
             </p>
             <p className="text-[11px] text-muted-foreground">
-              Projette votre référence dans un environnement immersif compatible Vision Pro / WebXR.
+              Projette votre référence dans un environnement immersif compatible Vision Pro / WebXR.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -179,7 +197,7 @@ const VRMode = ({
                 onClick={startVRSession}
                 disabled={isSupported === false}
               >
-                Entrer en VR
+                Entrer en VR
               </Button>
             ) : (
               <Button
@@ -188,7 +206,7 @@ const VRMode = ({
                 className="h-9 rounded-full border-white/60 bg-white/70 px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-foreground hover:bg-white"
                 onClick={endVRSession}
               >
-                Quitter la VR
+                Quitter la VR
               </Button>
             )}
           </div>
@@ -213,7 +231,7 @@ const VRMode = ({
                 />
               ) : (
                 <p className="mx-6 text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  Charge une image de référence dans les outils de projection pour la voir en VR
+                  Charge une image de référence dans les outils de projection pour la voir en VR
                 </p>
               )}
             </div>
@@ -241,10 +259,21 @@ const VRMode = ({
                 }}
               />
             )}
+            {/* Perspective Grid Overlay */}
+            <PerspectiveGrid
+              enabled={perspectiveEnabled}
+              horizonPosition={horizonPosition}
+              vanishingPoints={vanishingPoints}
+              onVanishingPointsChange={onVanishingPointsChange}
+              lineCount={perspectiveLineCount}
+              gridOpacity={perspectiveOpacity}
+              containerWidth={containerWidth}
+              containerHeight={containerHeight}
+            />
             {/* Mode labels */}
             <div className="pointer-events-none absolute left-4 top-4 flex flex-col gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-foreground">
               <span className="inline-flex items-center rounded-full bg-white/70 px-3 py-1 shadow-md shadow-black/10">
-                Vision Pro / WebXR
+                Vision Pro / WebXR
               </span>
               {isSessionActive && (
                 <span className="inline-flex items-center rounded-full bg-accent px-3 py-1 text-white shadow-md shadow-accent/50">
