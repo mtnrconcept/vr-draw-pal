@@ -10,7 +10,6 @@ import {
 import ClassicMode from "@/components/drawmaster/ClassicMode";
 import ARMode from "@/components/drawmaster/ARMode";
 import VRMode from "@/components/drawmaster/VRMode";
-import GhostMentor from "@/components/drawmaster/GhostMentor";
 import AICoachMaster from "@/components/drawmaster/AICoachMaster";
 import DrawingTools from "@/components/drawmaster/DrawingTools";
 import { Camera, Anchor, Grid, Ghost, Menu, X, ArrowLeft, Sparkles } from "lucide-react";
@@ -453,35 +452,6 @@ const DrawMasterVR = () => {
               brightness={brightness}
               onBrightnessChange={setBrightness}
             />
-
-            {ghostMentorEnabled && (
-              <GhostMentor
-                mode={activeMode}
-                referenceImage={referenceImage}
-                assistanceLevel={assistanceLevel}
-                onAssistanceLevelChange={setAssistanceLevel}
-                showGhostLines={showGhostLines}
-                onShowGhostLinesChange={setShowGhostLines}
-                showHeatmap={showHeatmap}
-                onShowHeatmapChange={setShowHeatmap}
-                showTrajectories={showTrajectories}
-                onShowTrajectoriesChange={setShowTrajectories}
-                sensitivity={sensitivity}
-                onSensitivityChange={setSensitivity}
-                grayscaleMode={grayscaleMode}
-                onGrayscaleModeChange={setGrayscaleMode}
-                showPencilGuides={showPencilGuides}
-                onShowPencilGuidesChange={setShowPencilGuides}
-                activePencilFilter={activePencilFilter}
-                onActivePencilFilterChange={setActivePencilFilter}
-                isolateZone={isolateZone}
-                onIsolateZoneChange={setIsolateZone}
-                errors={errors}
-                corrections={corrections}
-                accuracy={accuracy}
-                feedback={feedback}
-              />
-            )}
 
             {aiCoachEnabled && (
               <AICoachMaster
