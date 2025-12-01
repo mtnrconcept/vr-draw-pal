@@ -60,6 +60,16 @@ const DrawMasterVR = () => {
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
+  // Perspective State
+  const [perspectiveEnabled, setPerspectiveEnabled] = useState(false);
+  const [horizonPosition, setHorizonPosition] = useState(50);
+  const [vanishingPointCount, setVanishingPointCount] = useState(1);
+  const [vanishingPoints, setVanishingPoints] = useState([
+    { id: 'vp1', x: 50, y: 50 }
+  ]);
+  const [perspectiveLineCount, setPerspectiveLineCount] = useState(15);
+  const [perspectiveOpacity, setPerspectiveOpacity] = useState(60);
+
   // Ref to track metrics for the interval without resetting it
   const metricsRef = useRef({ accuracy, errors });
   useEffect(() => {
@@ -99,6 +109,27 @@ const DrawMasterVR = () => {
     // but the LLM loop will overwrite it periodically.
     if (update.feedback !== undefined && update.feedback !== null) setFeedback(update.feedback);
   };
+
+  // Update vanishing points when count changes
+  useEffect(() => {
+    const currentCount = vanishingPoints.length;
+    if (vanishingPointCount > currentCount) {
+      // Add new points
+      const newPoints = [...vanishingPoints];
+      for (let i = currentCount; i < vanishingPointCount; i++) {
+        const angle = (i / vanishingPointCount) * Math.PI * 2;
+        newPoints.push({
+          id: `vp${i + 1}`,
+          x: 50 + Math.cos(angle) * 20,
+          y: 50 + Math.sin(angle) * 20,
+        });
+      }
+      setVanishingPoints(newPoints);
+    } else if (vanishingPointCount < currentCount) {
+      // Remove points
+      setVanishingPoints(vanishingPoints.slice(0, vanishingPointCount));
+    }
+  }, [vanishingPointCount]);
 
   const navigate = useNavigate();
 
@@ -313,6 +344,12 @@ const DrawMasterVR = () => {
                     showPencilGuides={showPencilGuides}
                     activePencilFilter={activePencilFilter}
                     isolateZone={isolateZone}
+                    perspectiveEnabled={perspectiveEnabled}
+                    horizonPosition={horizonPosition}
+                    vanishingPoints={vanishingPoints}
+                    onVanishingPointsChange={setVanishingPoints}
+                    perspectiveLineCount={perspectiveLineCount}
+                    perspectiveOpacity={perspectiveOpacity}
                   />
                 </TabsContent>
                 <TabsContent value="ar" className="mt-0 h-full space-y-4">
@@ -327,6 +364,12 @@ const DrawMasterVR = () => {
                     strobeMaxOpacity={strobeMaxOpacity}
                     contrast={contrast}
                     brightness={brightness}
+                    perspectiveEnabled={perspectiveEnabled}
+                    horizonPosition={horizonPosition}
+                    vanishingPoints={vanishingPoints}
+                    onVanishingPointsChange={setVanishingPoints}
+                    perspectiveLineCount={perspectiveLineCount}
+                    perspectiveOpacity={perspectiveOpacity}
                   />
                 </TabsContent>
                 <TabsContent value="vr" className="mt-0 h-full space-y-4">
@@ -351,6 +394,12 @@ const DrawMasterVR = () => {
                     showPencilGuides={showPencilGuides}
                     activePencilFilter={activePencilFilter}
                     isolateZone={isolateZone}
+                    perspectiveEnabled={perspectiveEnabled}
+                    horizonPosition={horizonPosition}
+                    vanishingPoints={vanishingPoints}
+                    onVanishingPointsChange={setVanishingPoints}
+                    perspectiveLineCount={perspectiveLineCount}
+                    perspectiveOpacity={perspectiveOpacity}
                   />
                 </TabsContent>
               </div>
@@ -451,6 +500,16 @@ const DrawMasterVR = () => {
               onContrastChange={setContrast}
               brightness={brightness}
               onBrightnessChange={setBrightness}
+              perspectiveEnabled={perspectiveEnabled}
+              onPerspectiveEnabledChange={setPerspectiveEnabled}
+              horizonPosition={horizonPosition}
+              onHorizonPositionChange={setHorizonPosition}
+              vanishingPointCount={vanishingPointCount}
+              onVanishingPointCountChange={setVanishingPointCount}
+              perspectiveLineCount={perspectiveLineCount}
+              onPerspectiveLineCountChange={setPerspectiveLineCount}
+              perspectiveOpacity={perspectiveOpacity}
+              onPerspectiveOpacityChange={setPerspectiveOpacity}
             />
 
             {aiCoachEnabled && (

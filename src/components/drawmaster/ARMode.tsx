@@ -26,6 +26,8 @@ const toast = {
   error: (msg: string) => console.error("✗", msg),
 };
 
+import PerspectiveGrid, { VanishingPoint } from "./PerspectiveGrid";
+
 interface ARAnchorsModeProps {
   referenceImage: string | null;
   ghostMentorEnabled?: boolean;
@@ -38,6 +40,13 @@ interface ARAnchorsModeProps {
   strobeMaxOpacity: number;
   contrast: number;
   brightness: number;
+  // Perspective props
+  perspectiveEnabled: boolean;
+  horizonPosition: number;
+  vanishingPoints: VanishingPoint[];
+  onVanishingPointsChange: (points: VanishingPoint[]) => void;
+  perspectiveLineCount: number;
+  perspectiveOpacity: number;
 }
 
 // --- LISSAGE D'HOMOGRAPHIE HAUTE PRÉCISION ------------------------------
@@ -90,6 +99,12 @@ export default function ARAnchorsMode({
   strobeMaxOpacity,
   contrast,
   brightness,
+  perspectiveEnabled,
+  horizonPosition,
+  vanishingPoints,
+  onVanishingPointsChange,
+  perspectiveLineCount,
+  perspectiveOpacity,
 }: ARAnchorsModeProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -132,6 +147,7 @@ export default function ARAnchorsMode({
   const [projectedOverlayAnchors, setProjectedOverlayAnchors] = useState<
     { id: string; label?: string; x: number; y: number }[]
   >([]);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   const anchorLossFramesRef = useRef(0);
   const wasTrackingBeforeCalibrationRef = useRef(false);
   const renderSurfaceRef = useRef<HTMLDivElement>(null);
@@ -197,6 +213,7 @@ export default function ARAnchorsMode({
       if (clientWidth && clientHeight) {
         canvas.width = clientWidth;
         canvas.height = clientHeight;
+        setContainerDimensions({ width: clientWidth, height: clientHeight });
       }
     };
 
@@ -1339,6 +1356,18 @@ export default function ARAnchorsMode({
           />
 
           <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+          {/* Perspective Grid Overlay */}
+          <PerspectiveGrid
+            enabled={perspectiveEnabled}
+            horizonPosition={horizonPosition}
+            vanishingPoints={vanishingPoints}
+            onVanishingPointsChange={onVanishingPointsChange}
+            lineCount={perspectiveLineCount}
+            gridOpacity={perspectiveOpacity}
+            containerWidth={containerDimensions.width}
+            containerHeight={containerDimensions.height}
+          />
 
           {isManualAnchorEditing && projectedOverlayAnchors.length > 0 && (
             <div className="pointer-events-none absolute inset-0 z-20">

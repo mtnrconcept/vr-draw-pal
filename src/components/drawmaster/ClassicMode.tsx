@@ -7,6 +7,7 @@ import { RotateCw } from "lucide-react";
 import { requestCameraStream, CameraAccessError } from "@/lib/media/camera";
 import { toast } from "sonner";
 import { processImageForPencils } from "@/lib/art/pencil-guide";
+import PerspectiveGrid, { VanishingPoint } from "./PerspectiveGrid";
 
 interface ClassicModeProps {
   referenceImage: string | null;
@@ -32,6 +33,13 @@ interface ClassicModeProps {
   showPencilGuides?: boolean;
   activePencilFilter?: string | null;
   isolateZone?: boolean;
+  // Perspective props
+  perspectiveEnabled: boolean;
+  horizonPosition: number;
+  vanishingPoints: VanishingPoint[];
+  onVanishingPointsChange: (points: VanishingPoint[]) => void;
+  perspectiveLineCount: number;
+  perspectiveOpacity: number;
 }
 
 const ClassicMode = ({
@@ -56,6 +64,12 @@ const ClassicMode = ({
   showPencilGuides,
   activePencilFilter,
   isolateZone,
+  perspectiveEnabled,
+  horizonPosition,
+  vanishingPoints,
+  onVanishingPointsChange,
+  perspectiveLineCount,
+  perspectiveOpacity,
 }: ClassicModeProps) => {
   const [opacity, setOpacity] = useState(50);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -66,6 +80,7 @@ const ClassicMode = ({
   const strobePhaseRef = useRef(0);
   const [dynamicOpacity, setDynamicOpacity] = useState(opacity / 100);
   const [cameraAspectRatio, setCameraAspectRatio] = useState(4 / 3);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
 
   // Pencil Guide State
   const [processedOverlay, setProcessedOverlay] = useState<string | null>(null);
@@ -79,6 +94,25 @@ const ClassicMode = ({
       }
     }
   }, []);
+
+  // Track container dimensions for perspective grid
+  useEffect(() => {
+    const container = canvasRef.current;
+    if (!container) return;
+
+    const updateDimensions = () => {
+      setContainerDimensions({
+        width: container.clientWidth,
+        height: container.clientHeight,
+      });
+    };
+
+    updateDimensions();
+    const observer = new ResizeObserver(updateDimensions);
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [cameraAspectRatio]);
 
   // Process image for pencil guides
   useEffect(() => {
@@ -194,6 +228,7 @@ const ClassicMode = ({
   return (
     <div className="mobile-safe-area space-y-6 mobile-stack-gap">
       <div
+        ref={canvasRef}
         className="relative w-full overflow-hidden rounded-[28px] border border-white/60 bg-black/80 shadow-[var(--shadow-card)]"
         style={{ aspectRatio: cameraAspectRatio }}
       >
@@ -278,6 +313,18 @@ const ClassicMode = ({
             }}
           />
         )}
+
+        {/* Perspective Grid Overlay */}
+        <PerspectiveGrid
+          enabled={perspectiveEnabled}
+          horizonPosition={horizonPosition}
+          vanishingPoints={vanishingPoints}
+          onVanishingPointsChange={onVanishingPointsChange}
+          lineCount={perspectiveLineCount}
+          gridOpacity={perspectiveOpacity}
+          containerWidth={containerDimensions.width}
+          containerHeight={containerDimensions.height}
+        />
 
         {ghostMentorEnabled && (
           <div className="absolute right-4 top-4 rounded-full bg-primary/30 px-4 py-1 text-xs font-semibold uppercase tracking-widest text-white shadow-[0_10px_30px_rgba(92,80,255,0.4)]">
