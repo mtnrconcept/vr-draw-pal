@@ -14,6 +14,21 @@ const AICoachDemo = () => {
     const [mode, setMode] = useState<"classic" | "ar" | "vr">("vr");
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
 
+    // Ghost Mentor states
+    const [assistanceLevel, setAssistanceLevel] = useState<"soft" | "medium" | "hard">("medium");
+    const [showGhostLines, setShowGhostLines] = useState(true);
+    const [showHeatmap, setShowHeatmap] = useState(false);
+    const [showTrajectories, setShowTrajectories] = useState(false);
+    const [sensitivity, setSensitivity] = useState(70);
+    const [grayscaleMode, setGrayscaleMode] = useState(false);
+    const [showPencilGuides, setShowPencilGuides] = useState(false);
+    const [activePencilFilter, setActivePencilFilter] = useState<string | null>(null);
+    const [isolateZone, setIsolateZone] = useState(false);
+    const [errors, setErrors] = useState(0);
+    const [corrections, setCorrections] = useState(0);
+    const [accuracy, setAccuracy] = useState<number | null>(null);
+    const [feedback, setFeedback] = useState<string | null>(null);
+
     return (
         <Layout>
             <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 p-4 sm:p-8">
@@ -127,7 +142,32 @@ const AICoachDemo = () => {
 
                 {/* Main AI Coach Interface */}
                 <div className="max-w-7xl mx-auto">
-                    <AICoachMaster mode={mode} referenceImage={referenceImage} />
+                    <AICoachMaster 
+                        mode={mode} 
+                        referenceImage={referenceImage}
+                        assistanceLevel={assistanceLevel}
+                        onAssistanceLevelChange={setAssistanceLevel}
+                        showGhostLines={showGhostLines}
+                        onShowGhostLinesChange={setShowGhostLines}
+                        showHeatmap={showHeatmap}
+                        onShowHeatmapChange={setShowHeatmap}
+                        showTrajectories={showTrajectories}
+                        onShowTrajectoriesChange={setShowTrajectories}
+                        sensitivity={sensitivity}
+                        onSensitivityChange={setSensitivity}
+                        grayscaleMode={grayscaleMode}
+                        onGrayscaleModeChange={setGrayscaleMode}
+                        showPencilGuides={showPencilGuides}
+                        onShowPencilGuidesChange={setShowPencilGuides}
+                        activePencilFilter={activePencilFilter}
+                        onActivePencilFilterChange={setActivePencilFilter}
+                        isolateZone={isolateZone}
+                        onIsolateZoneChange={setIsolateZone}
+                        errors={errors}
+                        corrections={corrections}
+                        accuracy={accuracy}
+                        feedback={feedback}
+                    />
                 </div>
 
                 {/* Footer Info */}
