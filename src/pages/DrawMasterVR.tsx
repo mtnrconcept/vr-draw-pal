@@ -457,6 +457,28 @@ const DrawMasterVR = () => {
               <AICoachMaster
                 mode={activeMode}
                 referenceImage={referenceImage}
+                assistanceLevel={assistanceLevel}
+                onAssistanceLevelChange={setAssistanceLevel}
+                showGhostLines={showGhostLines}
+                onShowGhostLinesChange={setShowGhostLines}
+                showHeatmap={showHeatmap}
+                onShowHeatmapChange={setShowHeatmap}
+                showTrajectories={showTrajectories}
+                onShowTrajectoriesChange={setShowTrajectories}
+                sensitivity={sensitivity}
+                onSensitivityChange={setSensitivity}
+                grayscaleMode={grayscaleMode}
+                onGrayscaleModeChange={setGrayscaleMode}
+                showPencilGuides={showPencilGuides}
+                onShowPencilGuidesChange={setShowPencilGuides}
+                activePencilFilter={activePencilFilter}
+                onActivePencilFilterChange={setActivePencilFilter}
+                isolateZone={isolateZone}
+                onIsolateZoneChange={setIsolateZone}
+                errors={errors}
+                corrections={corrections}
+                accuracy={accuracy}
+                feedback={feedback}
               />
             )}
           </Card>

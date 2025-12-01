@@ -22,23 +22,61 @@ import { Sparkles, Brain, Palette, Zap } from "lucide-react";
 interface AICoachMasterProps {
     mode: "classic" | "ar" | "vr";
     referenceImage: string | null;
+    // Ghost Mentor states from parent
+    assistanceLevel: "soft" | "medium" | "hard";
+    onAssistanceLevelChange: (level: "soft" | "medium" | "hard") => void;
+    showGhostLines: boolean;
+    onShowGhostLinesChange: (show: boolean) => void;
+    showHeatmap: boolean;
+    onShowHeatmapChange: (show: boolean) => void;
+    showTrajectories: boolean;
+    onShowTrajectoriesChange: (show: boolean) => void;
+    sensitivity: number;
+    onSensitivityChange: (value: number) => void;
+    grayscaleMode: boolean;
+    onGrayscaleModeChange: (enabled: boolean) => void;
+    showPencilGuides: boolean;
+    onShowPencilGuidesChange: (show: boolean) => void;
+    activePencilFilter: string | null;
+    onActivePencilFilterChange: (filter: string | null) => void;
+    isolateZone: boolean;
+    onIsolateZoneChange: (enabled: boolean) => void;
+    errors: number;
+    corrections: number;
+    accuracy: number | null;
+    feedback: string | null;
 }
 
 /**
  * AI Coach Master - Hub central pour toutes les fonctionnalités du coach IA
  * Regroupe tous les modules avancés dans une interface organisée par catégories
  */
-const AICoachMaster = ({ mode, referenceImage }: AICoachMasterProps) => {
-    // Ghost Mentor states
-    const [assistanceLevel, setAssistanceLevel] = useState<"soft" | "medium" | "hard">("medium");
-    const [showGhostLines, setShowGhostLines] = useState(true);
-    const [showHeatmap, setShowHeatmap] = useState(false);
-    const [showTrajectories, setShowTrajectories] = useState(false);
-    const [sensitivity, setSensitivity] = useState(70);
-    const [grayscaleMode, setGrayscaleMode] = useState(false);
-    const [showPencilGuides, setShowPencilGuides] = useState(false);
-    const [activePencilFilter, setActivePencilFilter] = useState<string | null>(null);
-    const [isolateZone, setIsolateZone] = useState(false);
+const AICoachMaster = ({ 
+    mode, 
+    referenceImage,
+    assistanceLevel,
+    onAssistanceLevelChange,
+    showGhostLines,
+    onShowGhostLinesChange,
+    showHeatmap,
+    onShowHeatmapChange,
+    showTrajectories,
+    onShowTrajectoriesChange,
+    sensitivity,
+    onSensitivityChange,
+    grayscaleMode,
+    onGrayscaleModeChange,
+    showPencilGuides,
+    onShowPencilGuidesChange,
+    activePencilFilter,
+    onActivePencilFilterChange,
+    isolateZone,
+    onIsolateZoneChange,
+    errors,
+    corrections,
+    accuracy,
+    feedback
+}: AICoachMasterProps) => {
 
     // Feature toggles
     const [volumetricEnabled, setVolumetricEnabled] = useState(false);
@@ -94,27 +132,27 @@ const AICoachMaster = ({ mode, referenceImage }: AICoachMasterProps) => {
                             mode={mode}
                             referenceImage={referenceImage}
                             assistanceLevel={assistanceLevel}
-                            onAssistanceLevelChange={setAssistanceLevel}
+                            onAssistanceLevelChange={onAssistanceLevelChange}
                             showGhostLines={showGhostLines}
-                            onShowGhostLinesChange={setShowGhostLines}
+                            onShowGhostLinesChange={onShowGhostLinesChange}
                             showHeatmap={showHeatmap}
-                            onShowHeatmapChange={setShowHeatmap}
+                            onShowHeatmapChange={onShowHeatmapChange}
                             showTrajectories={showTrajectories}
-                            onShowTrajectoriesChange={setShowTrajectories}
+                            onShowTrajectoriesChange={onShowTrajectoriesChange}
                             sensitivity={sensitivity}
-                            onSensitivityChange={setSensitivity}
+                            onSensitivityChange={onSensitivityChange}
                             grayscaleMode={grayscaleMode}
-                            onGrayscaleModeChange={setGrayscaleMode}
+                            onGrayscaleModeChange={onGrayscaleModeChange}
                             showPencilGuides={showPencilGuides}
-                            onShowPencilGuidesChange={setShowPencilGuides}
+                            onShowPencilGuidesChange={onShowPencilGuidesChange}
                             activePencilFilter={activePencilFilter}
-                            onActivePencilFilterChange={setActivePencilFilter}
+                            onActivePencilFilterChange={onActivePencilFilterChange}
                             isolateZone={isolateZone}
-                            onIsolateZoneChange={setIsolateZone}
-                            errors={0}
-                            corrections={0}
-                            accuracy={null}
-                            feedback={null}
+                            onIsolateZoneChange={onIsolateZoneChange}
+                            errors={errors}
+                            corrections={corrections}
+                            accuracy={accuracy}
+                            feedback={feedback}
                         />
 
                         <ErrorDetection
